@@ -9,6 +9,7 @@ import { AppWebSocketServer } from './wsServer.ts';
 import { BybitClient, BYBIT_REST_HOSTS, cleanCredential } from '../bybit/bybitClient.ts';
 import { DEFAULT_PUMP_SHORT, validatePumpShortSettings } from '../engine/pumpShort.ts';
 import { PumpShortScanner } from '../engine/pumpShortScanner.ts';
+import { PumpShortTrader } from '../engine/pumpShortTrader.ts';
 
 export const apiRouter = Router();
 apiRouter.use('/futures',futuresRouter);
@@ -18,6 +19,8 @@ const db = BotDatabase.getInstance();
 const engine = TradingEngine.getInstance();
 const pumpScanner = new PumpShortScanner(engine.getClient(), db);
 pumpScanner.start();
+const pumpTrader = new PumpShortTrader(engine, db, pumpScanner);
+pumpTrader.start();
 const wsServer = AppWebSocketServer.getInstance();
 
 // Phase 1 helpers -----------------------------------------------------------
@@ -78,6 +81,16 @@ apiRouter.get('/pump-short/scan', (_req: Request, res: Response) => res.json(pum
 apiRouter.post('/pump-short/scan', (_req: Request, res: Response) => {
   if (!pumpScanner.snapshot().running) void pumpScanner.scan();
   res.json({ success: true, ...pumpScanner.snapshot() });
+});
+apiRouter.get('/pump-short/positions', (_req: Request, res: Response) => res.json(pumpTrader.snapshot()));
+apiRouter.post('/pump-short/arm', (req: Request, res: Response) => {
+  const pin = checkPin(req.body?.pin);
+  if (!pin.ok) return res.status(pin.status).json({ success: false, error: pin.error });
+  try {
+    if (req.body?.enabled === false) pumpTrader.disarm();
+    else pumpTrader.arm(req.body?.confirm === true);
+    return res.json({ success: true, ...pumpTrader.snapshot() });
+  } catch (e: any) { return res.status(409).json({ success: false, error: e.message }); }
 });
 
 // 1c. Pause / resume automated trading (always PAUSED after a restart)

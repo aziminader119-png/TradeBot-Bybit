@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { navigate } from './navigation.ts';
 
 type Candidate = { symbol: string; low: number; high: number; growthPct: number; retracementTarget: number; lastPrice: number; excludedShort: boolean };
 type Scan = { running: boolean; checked: number; total: number; error: string | null; lastCompletedAt: number | null; candidates: Candidate[] };
@@ -7,10 +8,16 @@ const num = (n: number, digits = 5) => n.toLocaleString('en-US', { maximumFracti
 export function LightPumpShort() {
   const [scan, setScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [ownedPositions, setOwnedPositions] = useState(0);
   const refresh = () => fetch('/api/pump-short/scan').then(async r => {
     const data = await r.json(); if (!r.ok) throw Error(data.error || 'Scan unavailable'); setScan(data);
   }).catch(e => setError(e.message));
-  useEffect(() => { void refresh(); const id = setInterval(() => void refresh(), 5000); return () => clearInterval(id); }, []);
+  useEffect(() => {
+    const sync = () => { void refresh(); void fetch('/api/pump-short/positions').then(r => r.json()).then(d => {
+      setOwnedPositions((d.trades || []).filter((t: { status: string }) => t.status !== 'CLOSED').length);
+    }).catch(() => {}); };
+    sync(); const id = setInterval(sync, 5000); return () => clearInterval(id);
+  }, []);
   const begin = async () => {
     setError(null);
     try {
@@ -31,7 +38,7 @@ export function LightPumpShort() {
       <div className="metrics">
         <div className="metric"><div className="name">Eligible Pump Symbols</div><div className="val">{candidates.length}</div></div>
         <div className="metric"><div className="name">Excluded: Existing SHORT</div><div className="val">{excluded.length}</div></div>
-        <div className="metric"><div className="name">Pump Short Positions</div><div className="val">0</div></div>
+        <div className="metric"><div className="name">Pump Short Positions</div><div className="val">{ownedPositions}</div></div>
       </div>
     </section>
     <section className="section">
@@ -47,7 +54,8 @@ export function LightPumpShort() {
       {!scan?.candidates.length && <p>No candidates yet. Run a scan to load results.</p>}
     </section>
     <section className="section"><div className="legend">Pump Short Positions</div>
-      <p>No Pump Short positions have been opened. This new module is scan-only; older positions are not counted here.</p>
+      <p>New Pump Short orders require explicit arming in REAL mode. Existing bot positions are managed separately.</p>
+      <button type="button" onClick={() => navigate('/PumpPositions')}>Open Pump Positions</button>
     </section>
   </div>;
 }
