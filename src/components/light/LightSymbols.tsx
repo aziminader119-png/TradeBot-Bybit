@@ -1,6 +1,6 @@
 import {useRead, refreshReportRead} from './reports.tsx';
 import {SymbolLink} from './SymbolLink.tsx';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BotStateSummary } from '../../types/trading.ts';
 import type { StrategyCycle } from '../../types/strategy.ts';
 import { HedgeStartDialog } from '../terminal/HedgeStartDialog.tsx';
@@ -18,7 +18,7 @@ type Inst = { price1hPcnt?: number; fundingRate?: number; lastPrice?: number };
 type Managed = 'BOTH' | 'LONG' | 'SHORT' | 'NONE';
 type Mode = 'all' | 'both' | 'LONG' | 'SHORT' | 'none';
 type SideF = 'all' | 'BUY' | 'SELL';
-type K = 'symbol' | 'price' | 'h1' | 'h24' | 'funding' | 'managed';
+type K = 'symbol' | 'price' | 'h1' | 'h24' | 'funding' | 'managed' | 'turnover' | '2H' | '4H' | '12H' | '48H' | '72H' | '1W' | '1M';
 
 const CHANGE_COLS = ['2H', '4H', '12H', '48H', '72H', '1W', '1M']; // from Bybit candles, visible page only (/api/futures/changes)
 const MANAGED_LABEL: Record<Managed, string> = { BOTH: 'BUY / SHORT', LONG: 'BUY', SHORT: 'SHORT', NONE: '—' };
@@ -47,6 +47,13 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
   const [size, setSize] = useState(20);
   const [page, setPage] = useState(1);
   const [sort, toggleSort] = useSort<K>();
+  const initialOrder = useRef(new Map<string, number>());
+  const [history, setHistory] = useState<Record<string, Record<string, number | null>>>({});
+  const historyRef = useRef(history);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const frozenSort = useRef(new Map<string, number | string | null>());
   const [dialogSymbol, setDialogSymbol] = useState<string | null>(null);
   const pinRequired = Boolean((state?.settings as any)?.hasSecurityPin);
   const cycles: Record<string, StrategyCycle> = ((state as any)?.strategyCycles || {}) as Record<string, StrategyCycle>;
@@ -75,6 +82,40 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
     };
   }), [rows, inst, cycles, exchangePositions, state?.connection?.positionsSyncedAt]);
   type D = (typeof data)[number];
+  // Keep the original row order stable while live tickers update every few seconds.
+  if (initialOrder.current.size === 0) {
+    [...data].sort((a, b) => (b.turnover24h ?? 0) - (a.turnover24h ?? 0)).forEach((r, index) => initialOrder.current.set(r.symbol, index));
+  } else for (const r of data) if (!initialOrder.current.has(r.symbol)) initialOrder.current.set(r.symbol, initialOrder.current.size);
+  const sortValue = (r: D, k: K): number | string | null => k === 'symbol' ? r.symbol : k === 'price' ? r.lastPrice : k === 'h1' ? r.h1 : k === 'h24' ? r.change24hPct : k === 'funding' ? r.funding : k === 'turnover' ? r.turnover24h : k === 'managed' ? MANAGED_LABEL[r.managed] : historyRef.current[r.symbol]?.[k] ?? null;
+  const sortClick = async (k: K) => {
+    if (CHANGE_COLS.includes(k) && !historyLoaded) {
+      if (historyBusy) return;
+      setHistoryBusy(true); setHistoryError('');
+      try {
+        const symbols = data.map(r => r.symbol);
+        const chunks: string[][] = [];
+        for (let i = 0; i < symbols.length; i += 50) chunks.push(symbols.slice(i, i + 50));
+        const next = { ...historyRef.current };
+        let index = 0;
+        const worker = async () => {
+          while (index < chunks.length) {
+            const chunk = chunks[index++];
+            const response = await fetch('/api/futures/changes?symbols=' + chunk.join(','), { cache: 'no-store' });
+            if (!response.ok) throw Error('Could not load historical changes for all symbols');
+            const payload = await response.json();
+            Object.assign(next, payload.changes || {});
+          }
+        };
+        await Promise.all([worker(), worker(), worker()]);
+        historyRef.current = next; setHistory(next); setHistoryLoaded(true);
+      } catch (e: any) { setHistoryError(e.message || 'Historical sort unavailable'); return; }
+      finally { setHistoryBusy(false); }
+    }
+    const values = new Map<string, number | string | null>();
+    for (const row of data) values.set(row.symbol, sortValue(row, k));
+    frozenSort.current = values;
+    toggleSort(k);
+  };
 
   const overview = useMemo(() => {
     const c = { BOTH: 0, LONG: 0, SHORT: 0, NONE: 0 } as Record<Managed, number>;
@@ -89,13 +130,17 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
       && (mode === 'all' || (mode === 'both' && r.managed === 'BOTH') || (mode === 'none' && r.managed === 'NONE') || (mode === r.managed))
       && (sideF === 'all' || (sideF === 'BUY' && (r.managed === 'LONG' || r.managed === 'BOTH')) || (sideF === 'SELL' && (r.managed === 'SHORT' || r.managed === 'BOTH'))));
     // default order: 24h turnover (most traded first), as on the previous Symbols page
-    const base = [...f].sort((a, b) => (b.turnover24h ?? 0) - (a.turnover24h ?? 0));
-    return sortRows<D, K>(base, sort, (r, k) => k === 'symbol' ? r.symbol : k === 'price' ? r.lastPrice : k === 'h1' ? r.h1 : k === 'h24' ? r.change24hPct : k === 'funding' ? r.funding : MANAGED_LABEL[r.managed]);
-  }, [data, q, mode, sideF, sort]);
+    const base = [...f].sort((a, b) => (initialOrder.current.get(a.symbol) ?? 0) - (initialOrder.current.get(b.symbol) ?? 0));
+    return sortRows<D, K>(base, sort, (r) => frozenSort.current.get(r.symbol) ?? null);
+  }, [data, q, mode, sideF, sort, history]);
   const pg = usePaged(filtered, size, page);
   const visibleSymbols = pg.slice.map((r) => r.symbol).join(',');
   const changes = useRead<{ changes: Record<string, Record<string, number | null>> }>(visibleSymbols ? '/api/futures/changes?symbols=' + visibleSymbols : null, 60000);
-  const chg = (symbol: string, k: string) => changes.data?.changes?.[symbol]?.[k] ?? null;
+  useEffect(() => {
+    if (!changes.data?.changes) return;
+    historyRef.current = { ...historyRef.current, ...changes.data.changes };
+  }, [changes.data]);
+  const chg = (symbol: string, k: string) => changes.data?.changes?.[symbol]?.[k] ?? history[symbol]?.[k] ?? historyRef.current[symbol]?.[k] ?? null;
   const reset = <T,>(fn: (v: T) => void) => (v: T) => { fn(v); setPage(1); };
 
   const fundingTxt = (v: number | null) => (v === null ? '—' : `${v > 0 ? '+' : ''}${v.toFixed(4)}%`);
@@ -123,19 +168,21 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
           <RowsPicker size={size} onSize={reset(setSize)} />
           <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-side" value={sideF} options={[{value:'all',label:'All Sides'},{value:'BUY',label:'BUY'},{value:'SELL',label:'SHORT'}]} onChange={reset(setSideF)}/>
         </div>
+        {historyBusy && <div role="status" className="ft-muted">Loading historical percentages for all symbols before sorting…</div>}
+        {historyError && <div role="alert" className="lp-error">{historyError} — click the column again to retry.</div>}
         <div className="table-wrap" role="region" tabIndex={0} aria-label="Symbols table">
           <table className="lp-table symbols-table" data-testid="symbols-table">
             <colgroup><col style={{ width: '10%' }} /><col style={{ width: '4.5%' }} /><col style={{ width: '8.5%' }} />{Array.from({ length: 9 }, (_, i) => <col key={i} style={{ width: '4.8%' }} />)}<col style={{ width: '8%' }} /><col style={{ width: '9.5%' }} /><col style={{ width: '12.3%' }} /></colgroup>
             <thead><tr>
-              <SortTh k="symbol" s={sort} onSort={toggleSort}>Symbol</SortTh>
+              <SortTh k="symbol" s={sort} onSort={sortClick}>Symbol</SortTh>
               <th>Bybit</th>
-              <SortTh k="price" s={sort} onSort={toggleSort} title="Last traded price from Bybit's ticker">Last Price</SortTh>
-              <SortTh k="h1" s={sort} onSort={toggleSort} title="From Bybit's ticker (prevPrice1h)">1H %</SortTh>
-              {CHANGE_COLS.slice(0, 3).map((t) => <th key={t} title="From Bybit 15-minute candle closes (rows on this page). Not sortable across all symbols.">{t} %</th>)}
-              <SortTh k="h24" s={sort} onSort={toggleSort} title="From Bybit's ticker (price24hPcnt)">24H %</SortTh>
-              {CHANGE_COLS.slice(3).map((t) => <th key={t} title={'From Bybit '+(t.endsWith('H')?'1-hour':'daily')+' candle closes (rows on this page). Not sortable across all symbols.'}>{t} %</th>)}
-              <SortTh k="funding" s={sort} onSort={toggleSort} title="Current funding rate from Bybit's ticker">Funding Rate</SortTh>
-              <SortTh k="managed" s={sort} onSort={toggleSort} title="Sides the bot holds or will reopen in this symbol's hedge cycle">Managed Sides</SortTh>
+              <SortTh k="price" s={sort} onSort={sortClick} title="Last traded price from Bybit's ticker">Last Price</SortTh>
+              <SortTh k="h1" s={sort} onSort={sortClick} title="From Bybit's ticker (prevPrice1h)">1H %</SortTh>
+              {CHANGE_COLS.slice(0, 3).map((t) => <SortTh key={t} k={t} s={sort} onSort={sortClick} title="Bybit candle history, sorted across all symbols">{t} %</SortTh>)}
+              <SortTh k="h24" s={sort} onSort={sortClick} title="From Bybit's ticker (price24hPcnt)">24H %</SortTh>
+              {CHANGE_COLS.slice(3).map((t) => <SortTh key={t} k={t} s={sort} onSort={sortClick} title="Bybit candle history, sorted across all symbols">{t} %</SortTh>)}
+              <SortTh k="funding" s={sort} onSort={sortClick} title="Current funding rate from Bybit's ticker">Funding Rate</SortTh>
+              <SortTh k="managed" s={sort} onSort={sortClick} title="Sides the bot holds or will reopen in this symbol's hedge cycle">Managed Sides</SortTh>
               <th>Trade</th>
             </tr></thead>
             <tbody>
