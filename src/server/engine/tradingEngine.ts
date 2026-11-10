@@ -61,6 +61,8 @@ export class TradingEngine {
   private reconcileTimer: NodeJS.Timeout | null = null;
   private scheduledReconcileRunning = false;
   private reconcileCount = 0;
+  private fundingRetryAfter = new Map<string, number>();
+  private fundingCursor = 0;
   private startTime: number = Date.now();
   private lastTickTime: number = Date.now();
   private liveWallet: (BybitWalletResult & { lastUpdated: number; connected: boolean; errorMessage?: string }) | null = null;
@@ -877,16 +879,7 @@ export class TradingEngine {
       // ignore transient network hiccups
     }
 
-    // 2. If API keys are configured, periodically sync live wallet balance
-    if (settings.isApiKeyConfigured && settings.apiKey && settings.apiSecret) {
-      try {
-        await this.syncBybitWallet();
-      } catch (err: any) {
-        // silent transient network warning
-      }
-    }
-
-    // 3. If Bybit API credentials are configured, reconcile live Bybit positions!
+    // 2. Prioritize open positions. Wallet/funding must not delay position freshness.
     if (this.client.isConfigured()) {
       try {
         if (++this.reconcileCount % 30 === 0) await this.client.syncTime().catch(() => undefined);
@@ -894,31 +887,52 @@ export class TradingEngine {
         if (r.success) {
           if (!this.restorePending) await this.strategy.resolveUnknownIntents(); // while pending, tryRestore resolves them
           this.strategy.checkAgainstExchange();
-          // Phase 4: funding paid/received since each LIVE cycle started (read-only)
-          for (const c of Object.values(this.db.getStrategyCycles())) {
+          // Funding is secondary. A serial read for every managed cycle (often
+          // 80+) can hold the 10-second reconciliation lock for minutes.
+          // Bound the per-pass budget; remaining cycles rotate on later passes.
+          let fundingBudget = 4;
+          const fundingCycles = Object.values(this.db.getStrategyCycles());
+          const fundingStart = this.fundingCursor % Math.max(1, fundingCycles.length);
+          this.fundingCursor = fundingStart + 4;
+          for (const c of [...fundingCycles.slice(fundingStart), ...fundingCycles.slice(0, fundingStart)]) {
             if (c.mode !== 'LIVE' || c.status === 'CLOSED') continue;
             // read at most once a minute (well inside the 5-minute freshness limit used for basket decisions)
             if (c.fundingCheckedAt && Date.now() - c.fundingCheckedAt < 60_000 && !c.fundingError) continue;
+            if ((this.fundingRetryAfter.get(c.symbol) || 0) > Date.now()) continue;
+            if (fundingBudget-- <= 0) break;
             try {
               this.strategy.setFunding(c.symbol, await this.client.getFundingSince(c.symbol, c.startedAt));
+              this.fundingRetryAfter.delete(c.symbol);
             } catch (err: any) {
               this.strategy.setFunding(c.symbol, null, err.message || String(err));
+              this.fundingRetryAfter.set(c.symbol, Date.now() + 60_000);
             }
           }
           // Closed LIVE cycles: re-read funding for the exact cycle window once, so the record is final.
+          let closedFundingBudget = 2;
           for (const h of this.db.getCycleHistory().slice(0, 20)) {
             if (h.mode !== 'LIVE' || h.fundingFinal || !h.endedAt) continue;
+            if ((this.fundingRetryAfter.get(h.cycleId) || 0) > Date.now()) continue;
+            if (closedFundingBudget-- <= 0) break;
             try {
               const f = await this.client.getFundingSince(h.symbol, h.startedAt, h.endedAt);
               this.db.updateCycleHistory(h.cycleId, { funding: f, fundingError: undefined, fundingAt: Date.now(), fundingFinal: true });
+              this.fundingRetryAfter.delete(h.cycleId);
             } catch (err: any) {
               this.db.updateCycleHistory(h.cycleId, { fundingError: err.message || String(err), fundingCheckedAt: Date.now() });
+              this.fundingRetryAfter.set(h.cycleId, Date.now() + 60_000);
             }
           }
         }
       } catch (err: any) {
         console.warn('[Engine] Bybit position reconciliation error:', err.message);
       }
+    }
+    // 3. Wallet is read after positions so a slow balance endpoint cannot
+    // make the open-position table appear stale.
+    if (settings.isApiKeyConfigured && settings.apiKey && settings.apiSecret) {
+      try { await this.syncBybitWallet(); }
+      catch { /* Transient wallet failure must not stop position sync. */ }
     }
   }
 
