@@ -17,6 +17,7 @@ apiRouter.use('/indicator-alerts',alertsRouter);
 const db = BotDatabase.getInstance();
 const engine = TradingEngine.getInstance();
 const pumpScanner = new PumpShortScanner(engine.getClient(), db);
+pumpScanner.start();
 const wsServer = AppWebSocketServer.getInstance();
 
 // Phase 1 helpers -----------------------------------------------------------
