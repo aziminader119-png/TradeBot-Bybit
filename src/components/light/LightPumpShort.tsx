@@ -24,9 +24,9 @@ export function LightPumpShort() {
   return <div className="content" data-testid="pump-short-page">
     <section className="section">
       <div className="legend">Pump Short — Market Scanner</div>
-      <p>Read-only Bybit USDT perpetual scan. Existing SHORT positions are excluded from new entries.</p>
+      <p>Automatic scan every 5 minutes, using hourly candles from 1 hour through the configured lookback. Existing SHORT positions are excluded. Signals are read-only until order execution is enabled.</p>
       <button className="save" type="button" disabled={Boolean(scan?.running)} onClick={() => void begin()}>{scan?.running ? 'Scanning…' : 'Scan Now'}</button>
-      <p role="status">{scan?.running ? `Checked ${scan.checked} / ${scan.total}` : scan?.lastCompletedAt ? `Last completed: ${new Date(scan.lastCompletedAt).toLocaleString()}` : 'No scan completed yet'}</p>
+      <p role="status">{scan?.running ? `Checked ${scan.checked} / ${scan.total}` : scan?.lastCompletedAt ? `Last completed: ${new Date(scan.lastCompletedAt).toLocaleString()} — next scan automatically` : 'Waiting for automatic scan'}</p>
       {(scan?.error || error) && <p role="alert" className="field-error">{scan?.error || error}</p>}
       <div className="metrics">
         <div className="metric"><div className="name">Eligible Pump Symbols</div><div className="val">{candidates.length}</div></div>
