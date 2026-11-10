@@ -208,7 +208,6 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const strategies: Record<string, any> = (state as any)?.strategies || {};
   const pos = syncedPositions(state);
   const sides = cycles.flatMap((c) => (['Buy', 'Sell'] as const).map((sd) => ({ c, sd, s: c.sides[sd] })));
-  const openSides = (c: StrategyCycle) => (['Buy', 'Sell'] as const).filter((sd) => c.sides[sd].phase === 'OPEN').length;
   const tpPending = sides.filter(({ c, sd, s }) => {
     const pct = (sd === 'Buy' ? strategies[c.symbol]?.buy : strategies[c.symbol]?.sell)?.tpPct;
     const px = (state as any)?.tickers?.[c.symbol]?.lastPrice;
@@ -240,6 +239,22 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const bs = (k: string) => boxState[k] || {};
   return (
     <div className="content" data-testid="terminal-dashboard">
+      <section className="section" aria-label="Bybit and bot overview" data-testid="bot-status"><div className="legend">Positions Overview</div>
+        <div className="metrics">
+          <div className="metric"><div className="name">Bybit Open Positions</div><div className="val">{pos ? pos.length : '—'}</div></div>
+          <div className="metric"><div className="name">Long Positions</div><div className="val">{pos ? pos.filter((p) => p.side === 'Buy').length : '—'}</div></div>
+          <div className="metric"><div className="name">Short Positions</div><div className="val">{pos ? pos.filter((p) => p.side === 'Sell').length : '—'}</div></div>
+          <div className="metric"><div className="name">Unrealized PnL (USDT)</div><div className={`val${upnl === null ? '' : upnl < 0 ? ' red' : upnl > 0 ? ' green' : ''}`}>{upnl === null ? '—' : `${upnl > 0 ? '+' : ''}${fmt(upnl, 4)}`}</div></div>
+          <div className="metric"><div className="name">Open Symbols</div><div className="val">{bySym ? Object.keys(bySym).length : '—'}</div></div>
+          <div className="metric"><div className="name">BOT Managed Symbols</div><div className="val" data-testid="m-managed">{cycles.length}</div></div>
+          <div className="metric"><div className="name">BOT Positions</div><div className="val">{bot ? bot.length : '—'}</div></div>
+          <div className="metric"><div className="name">Symbols with Both Sides</div><div className="val">{bySym ? Object.values(bySym).filter((x) => x.size === 2).length : '—'}</div></div>
+          <div className="metric"><div className="name">Waiting Reopen</div><div className="val">{sides.filter((x) => x.s.phase === 'WAIT_TRIGGER').length}</div></div>
+          <div className="metric"><div className="name">Opening</div><div className="val">{sides.filter((x) => x.s.phase === 'OPENING').length}</div></div>
+          <div className="metric"><div className="name">Blocked / Review</div><div className={`val${cycles.some((c) => c.status === 'INCOMPLETE' || c.status === 'NEEDS_REVIEW') ? ' red' : ''}`}>{cycles.filter((c) => c.status === 'INCOMPLETE' || c.status === 'NEEDS_REVIEW').length}</div></div>
+          <div className="metric"><div className="name">TP Pending</div><div className={`val${tpPending ? ' orange' : ''}`}>{tpPending}</div></div>
+        </div>
+      </section>
       <Box legend="Pump Short — New Strategy" testid="pump-short-settings" onSave={savePump} saving={pumpSaving} status={pumpStatus} error={pumpError} inlineSave>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8 }}>
           <label style={labelStyle()}>Growth threshold (%)<input aria-label="Pump growth percent" type="number" min="0.1" step="0.1" value={pump.minGrowthPct} onChange={e => setPump(p => ({ ...p, minGrowthPct: e.target.value }))} /></label>
@@ -262,28 +277,6 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
       </Box>
       {hedgeLoading&&<p role="status">Loading strategy settings…</p>}
       {hedgeLoadError&&<p className="lp-error" role="alert">{hedgeLoadError} <button type="button" onClick={()=>void loadHedge()}>Retry</button></p>}
-      <section className="section" data-testid="bot-status"><div className="legend">Bot Status</div>
-        <div className="metrics">
-          <div className="metric"><div className="name">Managed Symbols</div><div className="val" data-testid="m-managed">{cycles.length}</div></div>
-          <div className="metric"><div className="name">Live BOT Positions</div><div className="val">{bot ? bot.length : '—'}</div></div>
-          <div className="metric"><div className="name">Fully Paired Symbols</div><div className="val">{cycles.filter((c) => openSides(c) === 2).length}</div></div>
-          <div className="metric"><div className="name">One-Sided Managed Symbols</div><div className="val">{cycles.filter((c) => openSides(c) === 1).length}</div></div>
-          <div className="metric"><div className="name">Waiting_Reopen</div><div className="val">{sides.filter((x) => x.s.phase === 'WAIT_TRIGGER').length}</div></div>
-          <div className="metric"><div className="name">Opening</div><div className="val">{sides.filter((x) => x.s.phase === 'OPENING').length}</div></div>
-          <div className="metric"><div className="name">Blocked</div><div className={`val${cycles.some((c) => c.status === 'INCOMPLETE' || c.status === 'NEEDS_REVIEW') ? ' red' : ''}`}>{cycles.filter((c) => c.status === 'INCOMPLETE' || c.status === 'NEEDS_REVIEW').length}</div></div>
-          <div className="metric"><div className="name">TP Pending</div><div className={`val${tpPending ? ' orange' : ''}`}>{tpPending}</div></div>
-        </div>
-      </section>
-      <section className="section" aria-label="Bybit live position totals" data-testid="bybit-positions"><div className="legend">Bybit Open Positions (Read-only)</div>
-        <div className="metrics">
-          <div className="metric"><div className="name">Open Positions</div><div className="val">{pos ? pos.length : '—'}</div></div>
-          <div className="metric"><div className="name">Long Positions</div><div className="val">{pos ? pos.filter((p) => p.side === 'Buy').length : '—'}</div></div>
-          <div className="metric"><div className="name">Short Positions</div><div className="val">{pos ? pos.filter((p) => p.side === 'Sell').length : '—'}</div></div>
-          <div className="metric"><div className="name">Symbols with Both Sides</div><div className="val">{bySym ? Object.values(bySym).filter((x) => x.size === 2).length : '—'}</div></div>
-          <div className="metric"><div className="name">Open Symbols</div><div className="val">{bySym ? Object.keys(bySym).length : '—'}</div></div>
-          <div className="metric"><div className="name">Unrealized PnL (USDT)</div><div className={`val${upnl === null ? '' : upnl < 0 ? ' red' : upnl > 0 ? ' green' : ''}`}>{upnl === null ? '—' : `${upnl > 0 ? '+' : ''}${fmt(upnl, 4)}`}</div></div>
-        </div>
-      </section>
 
       {oldServer && <div className="field-error" style={{ fontSize: 13 }} data-testid="old-server">These settings need the updated bot server: restart the bot on the new version to save Position Sizing, Position Size and Take Profit here.</div>}
       <div id="position-size-section" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,190px),1fr))', gap: 12, alignItems: 'stretch', marginBottom: 20 }}>
