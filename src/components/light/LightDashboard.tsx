@@ -6,7 +6,7 @@ import { LightModal, postJson, useToast } from './Modal.tsx';
 import { syncedPositions } from './LightShell.tsx';
 import { SideLabel, SymbolSide } from './format.tsx';
 import { useRead } from './reports.tsx';
-import { linkClick } from './navigation.ts';
+import { linkClick, navigate } from './navigation.ts';
 import type { AccountInfo } from './LightSecurity.tsx';
 
 // Dashboard content of the approved light design. Saves go to the server (/api/hedge/settings, /api/settings);
@@ -58,6 +58,26 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const [pumpSaving, setPumpSaving] = useState(false);
   const [pumpStatus, setPumpStatus] = useState<string | null>(null);
   const [pumpError, setPumpError] = useState<string | null>(null);
+  const [pumpExecution, setPumpExecution] = useState<{ armed: boolean; mode: string } | null>(null);
+  const [pumpPin, setPumpPin] = useState('');
+  const [pumpArmBusy, setPumpArmBusy] = useState(false);
+  const [pumpArmError, setPumpArmError] = useState<string | null>(null);
+  useEffect(() => {
+    const refresh = () => void fetch('/api/pump-short/positions').then(r => r.json()).then(d =>
+      setPumpExecution({ armed: Boolean(d.armed), mode: String(d.mode || 'OFF') })).catch(() => {});
+    refresh(); const timer = setInterval(refresh, 5000); return () => clearInterval(timer);
+  }, []);
+  const armPump = async (enabled: boolean) => {
+    if (enabled && !window.confirm('Enable REAL Pump Short orders? Up to 10 simultaneous Pump Short positions may be opened.')) return;
+    setPumpArmBusy(true); setPumpArmError(null);
+    try {
+      const r = await postJson('/api/pump-short/arm', { enabled, confirm: enabled, pin: pumpPin });
+      if (!r.ok) throw Error(r.data?.error || `HTTP ${r.status}`);
+      setPumpExecution({ armed: Boolean(r.data.armed), mode: String(r.data.mode) }); setPumpPin('');
+      showToast(enabled ? 'Pump Short execution enabled' : 'Pump Short execution stopped');
+    } catch (e: any) { setPumpArmError(e.message); }
+    finally { setPumpArmBusy(false); }
+  };
   useEffect(() => {
     fetch('/api/pump-short/settings').then(async r => {
       const d = await r.json();
@@ -228,7 +248,17 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
           <label style={labelStyle()}>Exit retracement (%)<input aria-label="Pump exit retracement percent" type="number" min="1" max="100" step="0.1" value={pump.retracementPct} onChange={e => setPump(p => ({ ...p, retracementPct: e.target.value }))} /></label>
           <label style={labelStyle()}>Position size (USDT)<input aria-label="Pump position size USDT" type="number" min="0.01" step="0.01" value={pump.positionNotionalUsdt} onChange={e => setPump(p => ({ ...p, positionNotionalUsdt: e.target.value }))} /></label>
         </div>
-        <small style={{ opacity: 0.7 }}>Independent settings only. Pump Short order execution is not enabled; existing strategies are unchanged.</small>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 12 }}>
+          <span style={{ fontSize: 12 }}>Pump Short: <strong className={pumpExecution?.armed ? 'green' : 'red'}>{pumpExecution?.armed ? 'ARMED' : 'DISARMED'}</strong></span>
+          <input aria-label="Pump security PIN" type="password" value={pumpPin} onChange={e => setPumpPin(e.target.value)} placeholder="Security PIN (if configured)" style={{ maxWidth: 220 }} />
+          <button type="button" disabled={pumpArmBusy || (pumpExecution?.armed ? false : pumpExecution?.mode !== 'REAL')} onClick={() => void armPump(!pumpExecution?.armed)}>
+            {pumpExecution?.armed ? 'Stop Pump Short Entries & Exits' : 'Enable REAL Pump Short'}
+          </button>
+          <button type="button" onClick={() => navigate('/PumpShort')}>View Pump Scanner</button>
+          <button type="button" onClick={() => navigate('/PumpPositions')}>Pump Positions</button>
+        </div>
+        {pumpArmError && <p role="alert" className="field-error">{pumpArmError}</p>}
+        <small style={{ opacity: 0.7 }}>Independent strategy. Execution requires REAL mode and explicit confirmation; older strategies are unchanged.</small>
       </Box>
       {hedgeLoading&&<p role="status">Loading strategy settings…</p>}
       {hedgeLoadError&&<p className="lp-error" role="alert">{hedgeLoadError} <button type="button" onClick={()=>void loadHedge()}>Retry</button></p>}

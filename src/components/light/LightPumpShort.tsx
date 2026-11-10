@@ -1,61 +1,91 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { navigate } from './navigation.ts';
+import { FilterChoices } from './FilterChoices.tsx';
+import { Pager, RowsPicker, SortTh, price, sortRows, usePaged, useSort } from './table.tsx';
 
 type Candidate = { symbol: string; low: number; high: number; growthPct: number; retracementTarget: number; lastPrice: number; excludedShort: boolean };
 type Scan = { running: boolean; checked: number; total: number; error: string | null; lastCompletedAt: number | null; candidates: Candidate[] };
-const num = (n: number, digits = 5) => n.toLocaleString('en-US', { maximumFractionDigits: digits });
+type Filter = 'ALL' | 'ELIGIBLE' | 'EXCLUDED';
+type SortKey = 'symbol' | 'growthPct' | 'low' | 'high' | 'lastPrice' | 'retracementTarget' | 'status';
 
 export function LightPumpShort() {
   const [scan, setScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ownedPositions, setOwnedPositions] = useState(0);
+  const [owned, setOwned] = useState(0);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<Filter>('ALL');
+  const [size, setSize] = useState(20);
+  const [page, setPage] = useState(1);
+  const [sort, toggleSort] = useSort<SortKey>();
   const refresh = () => fetch('/api/pump-short/scan').then(async r => {
-    const data = await r.json(); if (!r.ok) throw Error(data.error || 'Scan unavailable'); setScan(data);
+    const d = await r.json(); if (!r.ok) throw Error(d.error || 'Scanner unavailable'); setScan(d);
   }).catch(e => setError(e.message));
   useEffect(() => {
-    const sync = () => { void refresh(); void fetch('/api/pump-short/positions').then(r => r.json()).then(d => {
-      setOwnedPositions((d.trades || []).filter((t: { status: string }) => t.status !== 'CLOSED').length);
-    }).catch(() => {}); };
-    sync(); const id = setInterval(sync, 5000); return () => clearInterval(id);
+    const poll = () => { void refresh(); void fetch('/api/pump-short/positions').then(r => r.json()).then(d =>
+      setOwned((d.trades || []).filter((t: {status: string}) => t.status !== 'CLOSED').length)).catch(() => {}); };
+    poll(); const timer = setInterval(poll, 5000); return () => clearInterval(timer);
   }, []);
-  const begin = async () => {
+  const start = async () => {
     setError(null);
-    try {
-      const r = await fetch('/api/pump-short/scan', { method: 'POST' });
-      if (!r.ok) throw Error('Cannot start scan');
-      await refresh();
-    } catch (e: any) { setError(e.message); }
+    try { const r = await fetch('/api/pump-short/scan', { method: 'POST' }); if (!r.ok) throw Error('Cannot start scan'); void refresh(); }
+    catch (e: any) { setError(e.message); }
   };
-  const candidates = scan?.candidates.filter(c => !c.excludedShort) || [];
-  const excluded = scan?.candidates.filter(c => c.excludedShort) || [];
+  const all = scan?.candidates || [];
+  const eligible = all.filter(c => !c.excludedShort).length;
+  const filtered = useMemo(() => {
+    const q = query.trim().toUpperCase();
+    const rows = all.filter(c => (!q || c.symbol.includes(q)) && (filter === 'ALL' ||
+      (filter === 'ELIGIBLE' ? !c.excludedShort : c.excludedShort)));
+    return sortRows(rows, sort, (c, k) => k === 'status' ? (c.excludedShort ? 1 : 0) : c[k]);
+  }, [all, query, filter, sort]);
+  const pg = usePaged(filtered, size, page);
+  const change = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1); };
   return <div className="content" data-testid="pump-short-page">
     <section className="section">
       <div className="legend">Pump Short — Market Scanner</div>
-      <p>Automatic scan every 5 minutes, using hourly candles from 1 hour through the configured lookback. Existing SHORT positions are excluded. Signals are read-only until order execution is enabled.</p>
-      <button className="save" type="button" disabled={Boolean(scan?.running)} onClick={() => void begin()}>{scan?.running ? 'Scanning…' : 'Scan Now'}</button>
-      <p role="status">{scan?.running ? `Checked ${scan.checked} / ${scan.total}` : scan?.lastCompletedAt ? `Last completed: ${new Date(scan.lastCompletedAt).toLocaleString()} — next scan automatically` : 'Waiting for automatic scan'}</p>
-      {(scan?.error || error) && <p role="alert" className="field-error">{scan?.error || error}</p>}
       <div className="metrics">
-        <div className="metric"><div className="name">Eligible Pump Symbols</div><div className="val">{candidates.length}</div></div>
-        <div className="metric"><div className="name">Excluded: Existing SHORT</div><div className="val">{excluded.length}</div></div>
-        <div className="metric"><div className="name">Pump Short Positions</div><div className="val">{ownedPositions}</div></div>
+        <div className="metric"><div className="name">Eligible</div><div className="val green">{eligible}</div></div>
+        <div className="metric"><div className="name">Existing SHORT</div><div className="val red">{all.length - eligible}</div></div>
+        <div className="metric"><div className="name">Pump Positions</div><div className="val">{owned}</div></div>
+        <div className="metric"><div className="name">Checked</div><div className="val">{scan?.checked ?? 0} / {scan?.total ?? 0}</div></div>
       </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 12 }}>
+        <button className="save" type="button" disabled={scan?.running} onClick={() => void start()}>{scan?.running ? 'Scanning…' : 'Scan Now'}</button>
+        <button type="button" onClick={() => navigate('/PumpPositions')}>Pump Positions</button>
+        <span role="status" style={{ color: '#9da2ac', fontSize: 12 }}>{scan?.running ? 'Scanning…' : scan?.lastCompletedAt ? `Last update: ${new Date(scan.lastCompletedAt).toLocaleString()}` : 'Waiting for scan'}</span>
+      </div>
+      {(error || scan?.error) && <p role="alert" className="field-error">{error || scan?.error}</p>}
     </section>
     <section className="section">
-      <div className="legend">Pump Candidates</div>
-      <div style={{ overflowX: 'auto' }}><table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-        <thead><tr><th>Symbol</th><th>Growth</th><th>Wave Low</th><th>Wave High</th><th>Price</th><th>50% Exit</th><th>Status</th></tr></thead>
-        <tbody>{(scan?.candidates || []).map(c => <tr key={c.symbol}>
-          <td>{c.symbol}</td><td>{num(c.growthPct, 2)}%</td><td>{num(c.low, 8)}</td><td>{num(c.high, 8)}</td>
-          <td>{num(c.lastPrice, 8)}</td><td>{num(c.retracementTarget, 8)}</td>
-          <td>{c.excludedShort ? 'EXCLUDED — SHORT OPEN' : 'ELIGIBLE (NO ORDER)'}</td>
-        </tr>)}</tbody>
-      </table></div>
-      {!scan?.candidates.length && <p>No candidates yet. Run a scan to load results.</p>}
-    </section>
-    <section className="section"><div className="legend">Pump Short Positions</div>
-      <p>New Pump Short orders require explicit arming in REAL mode. Existing bot positions are managed separately.</p>
-      <button type="button" onClick={() => navigate('/PumpPositions')}>Open Pump Positions</button>
+      <div className="lp-toolbar">
+        <div className="tb-left"><input className="search" type="search" aria-label="Search pump symbols" placeholder="Search by Symbol..." value={query} onChange={e => change(setQuery)(e.target.value)} /></div>
+        <RowsPicker size={size} onSize={change(setSize)} />
+        <FilterChoices<Filter> label="Status" className="tb-right" value={filter} onChange={change(setFilter)} options={[
+          { value: 'ALL', label: 'All Candidates' }, { value: 'ELIGIBLE', label: 'Eligible' }, { value: 'EXCLUDED', label: 'SHORT Open' },
+        ]}/>
+      </div>
+      <div className="aged-table-title"><span>Pump Candidates</span></div>
+      <div className="table-wrap" role="region" tabIndex={0} aria-label="Pump candidates table">
+        <table className="lp-table" data-testid="pump-candidates-table">
+          <colgroup>{[18, 12, 14, 14, 14, 14, 14].map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
+          <thead><tr>
+            <SortTh k="symbol" s={sort} onSort={toggleSort}>Symbol</SortTh>
+            <SortTh k="growthPct" s={sort} onSort={toggleSort}>Growth</SortTh>
+            <SortTh k="low" s={sort} onSort={toggleSort}>Wave Low</SortTh>
+            <SortTh k="high" s={sort} onSort={toggleSort}>Wave High</SortTh>
+            <SortTh k="lastPrice" s={sort} onSort={toggleSort}>Last Price</SortTh>
+            <SortTh k="retracementTarget" s={sort} onSort={toggleSort}>Exit Target</SortTh>
+            <SortTh k="status" s={sort} onSort={toggleSort}>Status</SortTh>
+          </tr></thead>
+          <tbody>{pg.slice.length ? pg.slice.map(c => <tr key={c.symbol}>
+            <td className="symbol"><a href={`https://www.bybit.com/trade/usdt/${c.symbol}`} target="_blank" rel="noopener noreferrer" style={{ color: '#fafafa', fontWeight: 700 }}>{c.symbol}</a></td>
+            <td><span className="green" style={{ fontWeight: 700 }}>+{c.growthPct.toFixed(2)}%</span></td>
+            <td>{price(c.low)}</td><td>{price(c.high)}</td><td>{price(c.lastPrice)}</td><td>{price(c.retracementTarget)}</td>
+            <td><span className={c.excludedShort ? 'red' : 'green'} style={{ fontWeight: 700 }}>{c.excludedShort ? 'SHORT OPEN' : 'ELIGIBLE'}</span></td>
+          </tr>) : <tr><td className="empty" colSpan={7}>No candidates match the filters.</td></tr>}</tbody>
+        </table>
+      </div>
+      <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} />
     </section>
   </div>;
 }
