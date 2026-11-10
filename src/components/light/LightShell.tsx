@@ -71,14 +71,20 @@ export const LightShell: React.FC<{
   // for one minute instead of initiating an authenticated Bybit read every 10 seconds
   // from every dashboard view. Trade events still trigger an explicit refresh.
   const closedRead = useRead<{ rows: any[]; days: number }>(configured ? closedUrl(CLOSED_DEFAULT_DAYS) : null, 60000);
+  const pumpRead = useRead<{ trades: { symbol: string; status: string }[] }>('/api/pump-short/positions', 5000);
   const counts: Record<string, number | null> = useMemo(() => {
     const allCycles = ((state as any)?.strategyCycles || {}) as Record<string, StrategyCycle>;
     const thresholds = savedThresholds(state);
     const aged = (state?.settings as any)?.agedPositions;
+    const activePump = pumpRead.data?.trades?.filter(t => !['CLOSED', 'RELEASED'].includes(t.status)) || [];
+    const pumpSymbols = new Set(activePump.filter(t => ['OPEN', 'ENTRY_PENDING', 'EXIT_PENDING'].includes(t.status)).map(t => t.symbol));
     const inView = (v: any) => (pos ? pos.filter((p) => inPositionView(p, v, { cycles: allCycles, thresholds, now, aged })).length : null);
     return {
       symbols, all_positions: pos ? pos.length : null, latest_opened: pos ? pos.length : null,
-      bot_positions: pos ? pos.filter((p) => p.owner === 'bot').length : null, external_positions: inView('external'),
+      pump_positions: pumpRead.data ? activePump.length : null,
+      bot_positions: pos ? pos.filter((p) => p.owner === 'bot').length : null,
+      external_positions: pos ? pos.filter((p) => inPositionView(p, 'external', { cycles: allCycles, thresholds, now, aged }) &&
+        !(p.side === 'Sell' && pumpSymbols.has(p.symbol))).length : null,
       aged_positions: inView('aged'), deep_loss_positions: inView('loss'), deep_profit_positions: inView('profit'),
       high_margin_positions: inView('margin'), mart_positions: inView('mart'),
       bot_cycles: state ? Object.keys(allCycles).length : null,
@@ -90,8 +96,10 @@ export const LightShell: React.FC<{
       alert_history: state?.indicatorAlerts ? state.indicatorAlerts.events : null,
       logs: state ? (state.recentLogs || []).filter(visibleLog).length : null,
     };
-  }, [symbols, pos, state, now, tradesRead.data, closedRead.data]);
+  }, [symbols, pos, state, now, tradesRead.data, closedRead.data, pumpRead.data]);
   const countScope: Record<string, string> = {
+    pump_positions: 'Pump Short open, pending and review records (excluding closed and manually released records).',
+    external_positions: 'Exchange positions without main BOT ownership or active Pump Short ownership.',
     trade_history: 'Real (LIVE) bot executions in the stored record list (Simulation and unverified legacy excluded). The bot keeps only its latest records, so this is not a lifetime total.',
     closed_positions: `Bybit closed positions in the last ${CLOSED_DEFAULT_DAYS} days (the page's default period).`,
     logs: 'Latest log records in the live snapshot (up to 150), not a lifetime total.',

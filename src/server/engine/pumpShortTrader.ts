@@ -79,7 +79,7 @@ export class PumpShortTrader {
     return this.snapshot();
   }
 
-  public async adopt(symbol: string) {
+  public async adopt(symbol: string, manualWaveLow?: number) {
     if (this.busy) throw Error('Pump Short is reconciling positions; retry shortly');
     if (!/^[A-Z0-9]+USDT$/.test(symbol)) throw Error('Invalid USDT perpetual symbol');
     this.busy = true;
@@ -91,27 +91,30 @@ export class PumpShortTrader {
         throw Error('This SHORT is already managed by the main BOT. Remove it from BOT first.');
       if (this.trades.some(t => t.symbol === symbol && !['CLOSED', 'RELEASED'].includes(t.status)))
         throw Error('This symbol has an active, pending, or REVIEW Pump Short record; resolve it before adoption');
-      const wave = this.scanner.snapshot().candidates.find(c => c.symbol === symbol);
-      if (!wave || !(Number(p.avgPrice) > wave.low))
-        throw Error('Pump scanner has no valid wave low for this SHORT. Refresh the scanner before adopting; no target was guessed.');
+      const scanned = this.scanner.snapshot().candidates.find(c => c.symbol === symbol);
+      const low = manualWaveLow === undefined ? scanned?.low : manualWaveLow;
+      if (!Number.isFinite(low) || !(Number(low) > 0 && Number(p.avgPrice) > Number(low)))
+        throw Error('WAVE_LOW_REQUIRED: Enter a confirmed pump wave low below the current SHORT entry to set its exit target.');
+      const waveLow = Number(low);
+      const waveHigh = scanned?.high && scanned.high > waveLow ? scanned.high : Number(p.avgPrice);
       const old = [...this.trades].reverse().find(t => t.symbol === symbol && t.status === 'RELEASED');
       const settings = this.db.getSettings().pumpShort;
       if (!settings) throw Error('Pump Short settings unavailable');
       const entryPrice = Number(p.avgPrice);
       const qty = Number(p.size);
-      const target = pumpShortEntryTarget(entryPrice, wave.low, settings.retracementPct);
+      const target = pumpShortEntryTarget(entryPrice, waveLow, settings.retracementPct);
       if (!Number.isFinite(target) || !(target > 0 && target < entryPrice)) throw Error('Invalid Pump Short target');
       if (old) {
-        Object.assign(old, { status: 'OPEN', entryPrice, qty, target, waveLow: wave.low, waveHigh: wave.high,
-          exitPrice: null, exitAt: null, exitLinkId: null, note: 'Re-adopted after checking the live Bybit SHORT' });
+        Object.assign(old, { status: 'OPEN', entryPrice, qty, target, waveLow, waveHigh,
+          exitPrice: null, exitAt: null, exitLinkId: null, note: `Re-adopted existing Bybit SHORT${manualWaveLow === undefined ? '' : ' (manual wave low)'}` });
       } else {
         this.trades.push({ id: crypto.randomUUID(), symbol, status: 'OPEN', entryPrice, exitPrice: null,
-          target, waveLow: wave.low, waveHigh: wave.high, qty, entryAt: Date.now(), exitAt: null,
+          target, waveLow, waveHigh, qty, entryAt: Date.now(), exitAt: null,
           entryLinkId: `ps-adopt-${crypto.randomUUID().slice(0, 8)}`, exitLinkId: null,
-          note: 'Adopted existing Bybit SHORT; no entry order sent' });
+          note: `Manually assigned existing Bybit SHORT to Pump${manualWaveLow === undefined ? '' : ' with manually confirmed wave low'}; no entry order sent` });
       }
       this.save();
-      this.db.addLog('SECURITY', 'Pump Short ownership adopted', `Existing SHORT qty=${qty}; entry=${entryPrice}; waveLow=${wave.low}; target=${target}; no order sent`, symbol);
+      this.db.addLog('SECURITY', 'Pump Short ownership adopted', `Existing SHORT qty=${qty}; entry=${entryPrice}; waveLow=${waveLow}; target=${target}; source=${manualWaveLow === undefined ? 'scanner' : 'manual'}; no order sent`, symbol);
       return this.snapshot();
     } finally { this.busy = false; }
   }

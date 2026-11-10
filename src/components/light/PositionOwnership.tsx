@@ -30,12 +30,29 @@ export function PositionOwnershipActions({ id, symbol, side, owner, pump, refres
     } catch (e: any) { setError(e.message || String(e)); }
     finally { setBusy(false); }
   };
+  const addPump = async () => {
+    if (!window.confirm(`Move ${symbol} SHORT to Pump Positions?\nThis adopts the existing Bybit position without opening a new trade. Pump may close it automatically after being armed.`)) return;
+    setBusy(true); setError('');
+    try {
+      let result = await postJson('/api/pump-short/positions/adopt', { symbol, confirm: true });
+      if (!result.ok && String(result.data?.error || '').startsWith('WAVE_LOW_REQUIRED:')) {
+        const answer = window.prompt(`The scanner has no valid wave low for ${symbol}.\nEnter its confirmed pump wave LOW price (below your SHORT entry). This sets the Pump exit target:`);
+        if (answer === null) return;
+        const waveLow = Number(answer);
+        if (!answer.trim() || !Number.isFinite(waveLow) || waveLow <= 0) throw Error('Enter a valid positive wave low');
+        result = await postJson('/api/pump-short/positions/adopt', { symbol, waveLow, confirm: true });
+      }
+      if (!result.ok) throw Error(result.data?.error || 'Pump transfer rejected');
+      await refresh();
+    } catch (e: any) { setError(e.message || String(e)); }
+    finally { setBusy(false); }
+  };
   return <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, minWidth: 160 }}>
     {activePump ? <button type="button" disabled={busy || pump?.status !== 'OPEN'} className="row-act" onClick={() => void action('Remove from Pump', `/api/pump-short/positions/${pump!.id}/release`, { confirm: true })}>Remove Pump</button>
       : owner === 'bot' ? <button type="button" disabled={busy} className="row-act" onClick={() => void action('Remove from BOT', `/api/positions/${id}/transfer`, { targetOwner: 'external' })}>Remove BOT</button>
         : <>
           <button type="button" disabled={busy} className="row-act" onClick={() => void action('Add to BOT', `/api/positions/${id}/transfer`, { targetOwner: 'bot' })}>Add BOT</button>
-          {side === 'Sell' && <button type="button" disabled={busy} className="row-act" onClick={() => void action('Add to Pump', '/api/pump-short/positions/adopt', { symbol, confirm: true })}>Add Pump</button>}
+          {side === 'Sell' && <button type="button" disabled={busy} className="row-act" onClick={() => void addPump()}>Move to Pump</button>}
         </>}
     {error && <small role="alert" className="red" title={error} style={{ flexBasis: '100%' }}>{error}</small>}
   </div>;

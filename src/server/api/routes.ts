@@ -93,7 +93,8 @@ apiRouter.post('/pump-short/positions/:id/release', (req: Request, res: Response
 });
 apiRouter.post('/pump-short/positions/adopt', async (req: Request, res: Response) => {
   if (req.body?.confirm !== true) return res.status(400).json({ success: false, error: 'Confirmation required' });
-  try { return res.json({ success: true, ...await pumpTrader.adopt(String(req.body?.symbol || '').toUpperCase()) }); }
+  try { return res.json({ success: true, ...await pumpTrader.adopt(String(req.body?.symbol || '').toUpperCase(),
+    req.body?.waveLow === undefined ? undefined : Number(req.body.waveLow)) }); }
   catch (e: any) { return res.status(409).json({ success: false, error: e.message }); }
 });
 apiRouter.post('/pump-short/arm', (req: Request, res: Response) => {
