@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import type { BotDatabase } from '../db/database.ts';
 import type { TradingEngine } from './tradingEngine.ts';
 import type { PumpShortScanner, PumpCandidate } from './pumpShortScanner.ts';
+import { pumpShortEntryTarget } from './pumpShort.ts';
 
 export type PumpTradeStatus = 'ENTRY_PENDING' | 'OPEN' | 'EXIT_PENDING' | 'CLOSED' | 'REVIEW';
 export type PumpTrade = {
@@ -83,7 +84,12 @@ export class PumpShortTrader {
         if (trade.status === 'CLOSED' || trade.status === 'REVIEW') continue;
         const live = positions.find(p => p.symbol === trade.symbol && p.side === 'Sell' && Number(p.size) > 0);
         if (trade.status === 'ENTRY_PENDING') {
-          if (live) { trade.status = 'OPEN'; trade.qty = Number(live.size); trade.entryPrice = Number(live.avgPrice) || trade.entryPrice; this.save(); }
+          if (live) {
+            trade.status = 'OPEN'; trade.qty = Number(live.size); trade.entryPrice = Number(live.avgPrice) || trade.entryPrice;
+            if (trade.entryPrice > trade.waveLow)
+              trade.target = pumpShortEntryTarget(trade.entryPrice, trade.waveLow, this.db.getSettings().pumpShort!.retracementPct);
+            this.save();
+          }
           continue;
         }
         if (trade.status === 'EXIT_PENDING') {
@@ -101,6 +107,10 @@ export class PumpShortTrader {
           continue;
         }
         if (!live) { trade.status = 'REVIEW'; trade.note = 'SHORT missing on exchange; inspect before declaring closed'; this.save(); continue; }
+        // Recalculate existing live targets when deploying this formula or changing dashboard %.
+        if (!(trade.entryPrice > trade.waveLow)) { trade.status = 'REVIEW'; trade.note = 'Entry is not above wave low; exit target requires review'; this.save(); continue; }
+        const desiredTarget = pumpShortEntryTarget(trade.entryPrice, trade.waveLow, this.db.getSettings().pumpShort!.retracementPct);
+        if (trade.target !== desiredTarget) { trade.target = desiredTarget; this.save(); }
         if (!this.armed || this.engine.getTradingMode() !== 'REAL') continue;
         const price = this.marks[trade.symbol] || 0;
         if (price <= 0 || price > trade.target) continue;
@@ -138,7 +148,7 @@ export class PumpShortTrader {
     if (fresh.some(p => p.side === 'Sell' && Number(p.size) > 0)) return;
     const instrument = (await client.getInstrumentsInfo(candidate.symbol))[candidate.symbol];
     const price = (await client.getTickers(candidate.symbol))[candidate.symbol]?.lastPrice || 0;
-    if (!instrument || instrument.missingRules?.length || !(price > candidate.retracementTarget)) return;
+    if (!instrument || instrument.missingRules?.length || !(price > candidate.low)) return;
     const settings = this.db.getSettings().pumpShort;
     if (!settings) return;
     const step = instrument.qtyStep;
@@ -147,7 +157,7 @@ export class PumpShortTrader {
     if (!(qty >= instrument.minQty) || qty > instrument.maxQty || qty * price < instrument.minNotional) return;
     this.engine.assertOrderAllowed(false, 'automated', `Pump Short open ${candidate.symbol}`);
     const trade: PumpTrade = { id: crypto.randomUUID(), symbol: candidate.symbol, status: 'ENTRY_PENDING',
-      entryPrice: price, exitPrice: null, target: candidate.retracementTarget, waveLow: candidate.low,
+      entryPrice: price, exitPrice: null, target: pumpShortEntryTarget(price, candidate.low, settings.retracementPct), waveLow: candidate.low,
       waveHigh: candidate.high, qty, entryAt: Date.now(), exitAt: null,
       entryLinkId: `ps-e-${crypto.randomUUID().replace(/-/g, '').slice(0, 27)}`, exitLinkId: null, note: null };
     this.trades.push(trade); this.save(); // Must persist before network call.

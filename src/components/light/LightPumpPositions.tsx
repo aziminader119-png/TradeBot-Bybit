@@ -18,10 +18,10 @@ export function LightPumpPositions() {
   const open = trades.filter(t => t.status !== 'CLOSED');
   const closed = trades.filter(t => t.status === 'CLOSED');
   const Table = ({ items }: { items: PumpTrade[] }) => <div className="table-wrap" style={{ overflowX: 'auto' }}><table className="lp-table">
-    <thead><tr><th>Symbol</th><th>Side</th><th>Size</th><th>Entry</th><th>Mark</th><th>Exit</th><th>Exit Target</th><th>Wave Low</th><th>Wave High</th><th>Opened</th><th>Closed</th><th>P&L</th><th>Status</th></tr></thead>
+    <thead><tr><th>Symbol</th><th>Side</th><th>Size</th><th>Position Value (USDT)</th><th>Entry</th><th>Mark</th><th>Exit</th><th>Exit Target</th><th>Wave Low</th><th>Wave High</th><th>Opened</th><th>Closed</th><th>P&L</th><th>Status</th></tr></thead>
     <tbody>{items.map(t => { const pnl = t.status === 'CLOSED' && t.exitPrice != null ? (t.entryPrice - t.exitPrice) * t.qty : t.unrealizedPnl;
       return <tr key={t.id} title={t.note || undefined}>
-        <td>{t.symbol}</td><td style={{ color: '#ED4F5D' }}>SHORT</td><td>{price(t.qty)}</td>
+        <td>{t.symbol}</td><td style={{ color: '#ED4F5D' }}>SHORT</td><td>{price(t.qty)}</td><td>{(t.qty * t.entryPrice).toFixed(2)} USDT</td>
         <td>{price(t.entryPrice)}</td><td>{price(t.markPrice)}</td><td>{price(t.exitPrice)}</td><td>{price(t.target)}</td>
         <td>{price(t.waveLow)}</td><td>{price(t.waveHigh)}</td><td>{when(t.entryAt)}</td><td>{when(t.exitAt)}</td>
         <td style={{ color: pnl == null ? undefined : pnl >= 0 ? '#39AA77' : '#ED4F5D' }}>{pnl == null ? '—' : `${pnl.toFixed(4)} USDT*`}</td>

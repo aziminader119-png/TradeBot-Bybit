@@ -22,7 +22,7 @@ test('Pump Short never sends orders unless explicitly armed in REAL mode', async
     };
     const engine = { getTradingMode: () => mode, getClient: () => client,
       assertOrderAllowed: () => { if (mode !== 'REAL') throw Error('blocked'); } };
-    const db = { getSettings: () => ({ pumpShort: { positionNotionalUsdt: 30 }, emergencyStop: false }), addLog: () => {} };
+    const db = { getSettings: () => ({ pumpShort: { positionNotionalUsdt: 30, retracementPct: 50 }, emergencyStop: false }), addLog: () => {} };
     const scanner = { snapshot: () => ({ running: false, lastCompletedAt: Date.now(),
       candidates: [{ symbol: 'TESTUSDT', low: 100, high: 130, growthPct: 30,
         retracementTarget: 115, lastPrice: 120, excludedShort: false }] }) };
@@ -42,7 +42,7 @@ test('Pump Short never sends orders unless explicitly armed in REAL mode', async
     assert.equal(orders[0].reduceOnly, false);
     await (trader as any).tick();
     assert.equal(orders.length, 1, 'pending entry must not be sent twice');
-    assert.equal(trader.snapshot().trades[0].target, 115);
+    assert.equal(trader.snapshot().trades[0].target, 110);
     assert.ok(fs.existsSync(path.join(scratch, 'data', 'pump_short_trades.json')));
   } finally {
     process.chdir(prior);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PUMP_SHORT, findPumpWave, isPumpShortEntryEligible, pumpShortTargetHit } from '../src/server/engine/pumpShort.ts';
+import { DEFAULT_PUMP_SHORT, findPumpWave, isPumpShortEntryEligible, pumpShortTargetHit, pumpShortEntryTarget } from '../src/server/engine/pumpShort.ts';
 
 const day = 86_400_000;
 const now = 20 * day;
@@ -14,8 +14,14 @@ test('20% threshold and 50% retracement use the preceding low', () => {
   assert.equal(wave.growthPct, 40);
   assert.equal(wave.exitPrice, 120);
   assert.equal(isPumpShortEntryEligible(wave, 130), true);
-  assert.equal(isPumpShortEntryEligible(wave, 115), false);
+  assert.equal(isPumpShortEntryEligible(wave, 115), true);
   assert.equal(pumpShortTargetHit(wave, 120), true);
+});
+
+test('exit target is halfway from actual SELL entry to wave low, or further with configurable percentage', () => {
+  assert.equal(pumpShortEntryTarget(53.44, 38.83, 50).toFixed(3), '46.135');
+  assert.equal(pumpShortEntryTarget(53.44, 38.83, 55).toFixed(4), '45.4045');
+  assert.throws(() => pumpShortEntryTarget(35, 38.83, 50));
 });
 
 test('a high before the low is not counted as a pump', () => {

@@ -66,7 +66,14 @@ export function findPumpWave(candles: readonly PumpCandle[], nowMs: number, sett
 
 /** Do not open a short if the 50% retracement target is already behind the price. */
 export function isPumpShortEntryEligible(wave: PumpWave | null, marketPrice: number): boolean {
-  return wave !== null && Number.isFinite(marketPrice) && marketPrice > wave.exitPrice && marketPrice > 0;
+  return wave !== null && Number.isFinite(marketPrice) && marketPrice > wave.low;
+}
+
+/** Percentage of the distance between the actual SHORT entry and the wave's starting low. */
+export function pumpShortEntryTarget(entryPrice: number, waveLow: number, retracementPct: number): number {
+  if (![entryPrice, waveLow, retracementPct].every(Number.isFinite) || waveLow <= 0 || entryPrice <= waveLow || retracementPct <= 0 || retracementPct > 100)
+    throw new Error('Invalid entry / wave low / retracement percentage');
+  return entryPrice - (entryPrice - waveLow) * retracementPct / 100;
 }
 
 /** Exit only at/under the recorded retracement target; never interpret this as fixed entry-price TP. */

@@ -1,6 +1,6 @@
 import type { BybitClient } from '../bybit/bybitClient.ts';
 import type { BotDatabase } from '../db/database.ts';
-import { DEFAULT_PUMP_SHORT, findPumpWave, isPumpShortEntryEligible } from './pumpShort.ts';
+import { DEFAULT_PUMP_SHORT, findPumpWave, isPumpShortEntryEligible, pumpShortEntryTarget } from './pumpShort.ts';
 
 export interface PumpCandidate {
   symbol: string;
@@ -65,7 +65,7 @@ export class PumpShortScanner {
             const lastPrice = tickers[symbol]?.lastPrice || 0;
             if (wave && isPumpShortEntryEligible(wave, lastPrice)) {
               this.candidates.push({ symbol, low: wave.low, high: wave.high,
-                growthPct: wave.growthPct, retracementTarget: wave.exitPrice,
+                growthPct: wave.growthPct, retracementTarget: pumpShortEntryTarget(lastPrice, wave.low, settings.retracementPct),
                 lastPrice, excludedShort: shorts.has(symbol) });
             }
           } catch { /* One unavailable market must not abort the other scans. */ }

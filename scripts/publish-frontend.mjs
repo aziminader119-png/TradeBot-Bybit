@@ -20,8 +20,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const dist = path.join(root, process.env.TRADEBOT_DIST_DIR || 'dist');
-const next = path.join(root, process.env.TRADEBOT_NEXT_DIR || 'dist-next');
+const dist = path.resolve(root, process.env.TRADEBOT_DIST_DIR || 'dist');
+const next = path.resolve(root, process.env.TRADEBOT_NEXT_DIR || 'dist-next');
 const live = path.join(dist, 'index.html');
 const prev = path.join(dist, 'index.previous.html');
 
