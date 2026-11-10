@@ -206,6 +206,11 @@ html .sidebar .nav a .nav-count{margin-left:-7px;flex:none;color:#8d9098;font-si
 .page-dashboard .lp-table tbody tr:hover td{background:#141419}
 .page-dashboard .lp-table .empty{text-align:center;padding:30px;color:var(--muted);white-space:normal}
 .page-dashboard .lp-table .trade,.page-dashboard .lp-table .row-act{border:0;background:transparent;color:var(--orange);font-size:12.5px;font-weight:700;padding:3px 2px;cursor:pointer}
+.page-dashboard .symbols-table .symbol-trade-actions{display:flex;flex-direction:column;align-items:flex-start;gap:3px}
+.page-dashboard .symbols-table .managed-side-stack{display:flex;flex-direction:column;gap:2px}
+.page-dashboard .symbols-table .symbol-trade-singles{display:flex;gap:12px}
+.page-dashboard .symbols-table .symbol-trade-singles .pos-buy{color:var(--green,#0bba74)}
+.page-dashboard .symbols-table .symbol-trade-singles .pos-short{color:var(--red,#ff4761)}
 .page-dashboard .lp-table .trade.muted{color:#fafafa;font-weight:400}
 .page-dashboard .lp-table .trade:hover,.page-dashboard .lp-table .row-act:hover{color:#fafafa;text-decoration:underline}
 .page-dashboard .list-footer{padding:14px 18px;color:#adb1b8;font-size:12px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;border-top:1px solid #23232b}

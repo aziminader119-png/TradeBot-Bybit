@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BotStateSummary } from '../../types/trading.ts';
 import type { StrategyCycle } from '../../types/strategy.ts';
 import { HedgeStartDialog } from '../terminal/HedgeStartDialog.tsx';
+import { LightModal, postJson } from './Modal.tsx';
 import { FilterChoices } from './FilterChoices.tsx';
 import { Pager, RowsPicker, SortTh, price, signedPct, sortRows, tone, usePaged, useSort } from './table.tsx';
 
@@ -23,7 +24,7 @@ type K = 'symbol' | 'price' | 'h1' | 'h24' | 'funding' | 'managed' | 'turnover' 
 const CHANGE_COLS = ['2H', '4H', '12H', '48H', '72H', '1W', '1M']; // from Bybit candles, visible page only (/api/futures/changes)
 const MANAGED_LABEL: Record<Managed, string> = { BOTH: 'BUY / SHORT', LONG: 'BUY', SHORT: 'SHORT', NONE: '—' };
 // managed position sides in the shared BUY / SHORT colours
-const ManagedSides: React.FC<{ m: Managed }> = ({ m }) => m === 'NONE' ? <>—</> : <>{m !== 'SHORT' && <span className="pos-buy">BUY</span>}{m === 'BOTH' && ' / '}{m !== 'LONG' && <span className="pos-short">SHORT</span>}</>;
+const ManagedSides: React.FC<{ m: Managed }> = ({ m }) => m === 'NONE' ? <>—</> : <span className="managed-side-stack">{m !== 'SHORT' && <span className="pos-buy">BUY</span>}{m !== 'LONG' && <span className="pos-short">SHORT</span>}</span>;
 // a side counts as managed while the bot holds it or will reopen it (not CLOSED / FAILED) in a cycle that is not closed
 const LIVE_PHASES = new Set(['OPENING', 'OPEN', 'CLOSING', 'WAIT_TRIGGER', 'FROZEN']);
 
@@ -55,7 +56,44 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
   const [historyError, setHistoryError] = useState('');
   const frozenSort = useRef(new Map<string, number | string | null>());
   const [dialogSymbol, setDialogSymbol] = useState<string | null>(null);
+  const [singleOrder, setSingleOrder] = useState<{ symbol: string; side: 'Buy' | 'Sell'; value: string } | null>(null);
+  const [singlePreview, setSinglePreview] = useState<any>(null);
+  const [singleBusy, setSingleBusy] = useState(false);
+  const [singleError, setSingleError] = useState('');
   const pinRequired = Boolean((state?.settings as any)?.hasSecurityPin);
+  useEffect(() => {
+    if (!singleOrder) return;
+    let active = true;
+    setSinglePreview(null); setSingleError('');
+    const { symbol, side, value } = singleOrder;
+    if (!(Number(value) > 0)) return;
+    fetch(`/api/futures/preview/${encodeURIComponent(symbol)}?side=${side}&value=${encodeURIComponent(value)}`)
+      .then(async response => { const body = await response.json(); if (!response.ok) throw Error(body.error || 'Preview unavailable'); return body; })
+      .then(body => { if (active) setSinglePreview(body); })
+      .catch(error => { if (active) setSingleError(error.message); });
+    return () => { active = false; };
+  }, [singleOrder?.symbol, singleOrder?.side, singleOrder?.value]);
+  const openSingle = async (symbol: string, side: 'Buy' | 'Sell') => {
+    setSingleError(''); setSinglePreview(null);
+    let value = '10';
+    try {
+      const response = await fetch('/api/hedge/settings');
+      const settings = (await response.json()).settings;
+      const configured = Number(side === 'Buy' ? settings?.buyNotionalUsdt : settings?.sellNotionalUsdt);
+      if (Number.isFinite(configured) && configured > 0) value = String(configured);
+    } catch { /* User can edit the amount before placing an order. */ }
+    setSingleOrder({ symbol, side, value });
+  };
+  const confirmSingle = async () => {
+    if (!singleOrder || !singlePreview) return;
+    setSingleBusy(true); setSingleError('');
+    try {
+      const result = await postJson('/api/futures/order', { symbol: singleOrder.symbol, side: singleOrder.side, value: Number(singleOrder.value), confirm: true, requestId: crypto.randomUUID() });
+      if (!result.ok) throw Error(result.data?.error || 'Order outcome uncertain; check Trade History before trying again.');
+      setSingleOrder(null); onRefresh();
+    } catch (error: any) { setSingleError(error.message); }
+    finally { setSingleBusy(false); }
+  };
   const cycles: Record<string, StrategyCycle> = ((state as any)?.strategyCycles || {}) as Record<string, StrategyCycle>;
 
   const exchangePositions = useMemo(() => {
@@ -203,7 +241,13 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
                       <td className={tone(r.funding)} data-col="funding">{fundingTxt(r.funding)}</td>
                       <td data-col="managed"><ManagedSides m={r.managed} />{ext > 0 && <small className="ext-note" title="Open positions not opened by the bot; never changed">{ext} external</small>}</td>
                       <td className="trade-cell">
-                        <button type="button" className={`trade${busy ? ' muted' : ''}`} data-testid={`start-${r.symbol}`} title={busy ? 'This symbol already has a bot cycle or an open position: the check in the dialog decides whether a new hedge can start' : 'Preview, then confirm, a simultaneous Buy + Sell with your saved sizing settings'} onClick={() => setDialogSymbol(r.symbol)}>Start Buy + Sell</button>
+                        <div className="symbol-trade-actions">
+                          <button type="button" className={`trade${busy ? ' muted' : ''}`} data-testid={`start-${r.symbol}`} title="Open a bot-managed Buy + Short hedge after confirmation" onClick={() => setDialogSymbol(r.symbol)}>Start Buy + Sell</button>
+                          <div className="symbol-trade-singles">
+                            <button type="button" className="trade pos-buy" onClick={() => void openSingle(r.symbol, 'Buy')}>Buy Only</button>
+                            <button type="button" className="trade pos-short" onClick={() => void openSingle(r.symbol, 'Sell')}>Short Only</button>
+                          </div>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -215,6 +259,14 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
       </section>
 
       {dialogSymbol && <HedgeStartDialog symbol={dialogSymbol} pinRequired={pinRequired} onClose={() => setDialogSymbol(null)} onDone={onRefresh} />}
+      <LightModal open={Boolean(singleOrder)} title={`${singleOrder?.side === 'Buy' ? 'Buy Only' : 'Short Only'} — ${singleOrder?.symbol || ''}`} onClose={() => { if (!singleBusy) setSingleOrder(null); }} onConfirm={singlePreview ? () => void confirmSingle() : undefined} confirmLabel="Confirm single real order" busy={singleBusy} error={singleError}>
+        <p>This opens one external Bybit Futures position, not a managed Buy + Short bot cycle.</p>
+        <label>Position value (USDT)
+          <input type="number" min="0.01" step="0.01" value={singleOrder?.value || ''} onChange={e => setSingleOrder(p => p ? { ...p, value: e.target.value } : p)} />
+        </label>
+        {singleOrder && <p>Side: <strong>{singleOrder.side === 'Buy' ? 'BUY' : 'SHORT'}</strong></p>}
+        {singlePreview ? <p>Bybit quote verified. Review the value and side before confirming.</p> : <p>Checking the order with Bybit…</p>}
+      </LightModal>
     </div>
   );
 };
