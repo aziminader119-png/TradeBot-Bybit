@@ -896,8 +896,9 @@ export class TradingEngine {
           this.fundingCursor = fundingStart + 4;
           for (const c of [...fundingCycles.slice(fundingStart), ...fundingCycles.slice(0, fundingStart)]) {
             if (c.mode !== 'LIVE' || c.status === 'CLOSED') continue;
-            // read at most once a minute (well inside the 5-minute freshness limit used for basket decisions)
-            if (c.fundingCheckedAt && Date.now() - c.fundingCheckedAt < 60_000 && !c.fundingError) continue;
+            // Funding is lower priority than positions; refresh each live cycle
+            // once per hour, with a bounded per-pass request budget.
+            if (c.fundingCheckedAt && Date.now() - c.fundingCheckedAt < 60 * 60_000 && !c.fundingError) continue;
             if ((this.fundingRetryAfter.get(c.symbol) || 0) > Date.now()) continue;
             if (fundingBudget-- <= 0) break;
             try {
@@ -905,7 +906,7 @@ export class TradingEngine {
               this.fundingRetryAfter.delete(c.symbol);
             } catch (err: any) {
               this.strategy.setFunding(c.symbol, null, err.message || String(err));
-              this.fundingRetryAfter.set(c.symbol, Date.now() + 60_000);
+              this.fundingRetryAfter.set(c.symbol, Date.now() + 10 * 60_000);
             }
           }
           // Closed LIVE cycles: re-read funding for the exact cycle window once, so the record is final.

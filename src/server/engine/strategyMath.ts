@@ -262,8 +262,10 @@ export interface BasketBreakdown {
 }
 
 export type FundingStatus = 'OK' | 'PENDING' | 'ERROR' | 'STALE' | 'NOT_APPLICABLE';
-/** A funding value older than this is not used for a basket decision (a settlement may have happened since). */
-export const FUNDING_MAX_AGE_MS = 5 * 60 * 1000;
+/** Funding is fetched hourly to avoid holding up Bybit position reconciliation.
+ * A 15-minute allowance lets all active cycles finish their staggered batch.
+ * Funding booked since the last poll is not reflected until the next update. */
+export const FUNDING_MAX_AGE_MS = 75 * 60 * 1000;
 
 /**
  * LIVE funding for the cycle, never assumed. PAPER (and records without a mode) simulate no funding,
