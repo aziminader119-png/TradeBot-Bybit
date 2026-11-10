@@ -84,8 +84,9 @@ apiRouter.post('/pump-short/scan', (_req: Request, res: Response) => {
 });
 apiRouter.get('/pump-short/positions', (_req: Request, res: Response) => res.json(pumpTrader.snapshot()));
 apiRouter.post('/pump-short/arm', (req: Request, res: Response) => {
-  const pin = checkPin(req.body?.pin);
-  if (!pin.ok) return res.status(pin.status).json({ success: false, error: pin.error });
+  // This strategy uses the authenticated dashboard session and an explicit confirmation.
+  // The Security PIN remains required on the other protected routes.
+  if (req.body?.confirm !== true) return res.status(400).json({ success: false, error: 'Confirmation required' });
   try {
     if (req.body?.enabled === false) pumpTrader.disarm();
     else pumpTrader.arm(req.body?.confirm === true);

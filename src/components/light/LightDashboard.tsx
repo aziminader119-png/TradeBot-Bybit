@@ -59,7 +59,6 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const [pumpStatus, setPumpStatus] = useState<string | null>(null);
   const [pumpError, setPumpError] = useState<string | null>(null);
   const [pumpExecution, setPumpExecution] = useState<{ armed: boolean; mode: string } | null>(null);
-  const [pumpPin, setPumpPin] = useState('');
   const [pumpArmBusy, setPumpArmBusy] = useState(false);
   const [pumpArmError, setPumpArmError] = useState<string | null>(null);
   useEffect(() => {
@@ -68,12 +67,12 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
     refresh(); const timer = setInterval(refresh, 5000); return () => clearInterval(timer);
   }, []);
   const armPump = async (enabled: boolean) => {
-    if (enabled && !window.confirm('Enable REAL Pump Short orders? Up to 10 simultaneous Pump Short positions may be opened.')) return;
+    if (!window.confirm(enabled ? 'Enable REAL Pump Short orders? Up to 10 simultaneous Pump Short positions may be opened.' : 'Stop Pump Short entries and exits? Existing positions will remain open.')) return;
     setPumpArmBusy(true); setPumpArmError(null);
     try {
-      const r = await postJson('/api/pump-short/arm', { enabled, confirm: enabled, pin: pumpPin });
+      const r = await postJson('/api/pump-short/arm', { enabled, confirm: true });
       if (!r.ok) throw Error(r.data?.error || `HTTP ${r.status}`);
-      setPumpExecution({ armed: Boolean(r.data.armed), mode: String(r.data.mode) }); setPumpPin('');
+      setPumpExecution({ armed: Boolean(r.data.armed), mode: String(r.data.mode) });
       showToast(enabled ? 'Pump Short execution enabled' : 'Pump Short execution stopped');
     } catch (e: any) { setPumpArmError(e.message); }
     finally { setPumpArmBusy(false); }
@@ -250,7 +249,6 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 12 }}>
           <span style={{ fontSize: 12 }}>Pump Short: <strong className={pumpExecution?.armed ? 'green' : 'red'}>{pumpExecution?.armed ? 'ARMED' : 'DISARMED'}</strong></span>
-          <input aria-label="Pump security PIN" type="password" value={pumpPin} onChange={e => setPumpPin(e.target.value)} placeholder="Security PIN (if configured)" style={{ maxWidth: 220 }} />
           <button type="button" disabled={pumpArmBusy || (pumpExecution?.armed ? false : pumpExecution?.mode !== 'REAL')} onClick={() => void armPump(!pumpExecution?.armed)}>
             {pumpExecution?.armed ? 'Stop Pump Short Entries & Exits' : 'Enable REAL Pump Short'}
           </button>
