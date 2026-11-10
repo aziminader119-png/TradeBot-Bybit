@@ -23,6 +23,7 @@ export class PumpShortTrader {
   private lastError: string | null = null;
   private marks: Record<string, number> = {};
   private lastReasonLog = new Map<string, number>();
+  private entryRetryAfter = new Map<string, number>();
 
   private explain(reason: string, details: string, symbol?: string, intervalMs = 300_000) {
     const key = `${reason}:${symbol || ''}`;
@@ -198,44 +199,59 @@ export class PumpShortTrader {
         this.explain('Scanner not ready', `Running=${scan.running}; last completed=${scan.lastCompletedAt || 'never'}`);
         return;
       }
-      // One new order per pass, and no more than ten owned open/pending shorts overall.
+      // Submit at most one new order per pass. Preflight-rejected symbols must not
+      // starve every lower-ranked eligible candidate on subsequent passes.
       const occupied = this.trades.filter(t => t.status !== 'CLOSED' && t.status !== 'RELEASED').length;
       const maxPositions = this.db.getSettings().pumpShort?.maxPositions ?? 10;
       if (occupied >= maxPositions) { this.explain('Position limit', `${occupied}/${maxPositions} Pump Short positions or unresolved records; no new orders until slots are available.`); return; }
       const existing = new Set(positions.filter(p => p.side === 'Sell' && Number(p.size) > 0).map(p => String(p.symbol)));
-      const candidate = scan.candidates.find(c => !c.excludedShort && !existing.has(c.symbol) &&
+      const candidates = scan.candidates.filter(c => !c.excludedShort && !existing.has(c.symbol) &&
         !this.trades.some(t => t.symbol === c.symbol && !['CLOSED', 'RELEASED'].includes(t.status)));
-      if (!candidate) { this.explain('No available candidate', `${scan.candidates.length} pump candidates; all excluded due to existing SHORT or Pump Short records.`); return; }
-      await this.open(candidate);
+      if (!candidates.length) { this.explain('No available candidate', `${scan.candidates.length} pump candidates; all excluded due to existing SHORT or Pump Short records.`); return; }
+      const ready = candidates.filter(c => (this.entryRetryAfter.get(c.symbol) || 0) <= Date.now());
+      if (!ready.length) { this.explain('Candidates cooling down', `${candidates.length} candidates previously rejected by preflight; retrying after cooldown.`); return; }
+      let checked = 0;
+      for (const candidate of ready.slice(0, 3)) {
+        checked++;
+        try {
+          if (await this.open(candidate)) { this.entryRetryAfter.delete(candidate.symbol); return; }
+        } catch (e: any) {
+          this.explain('Candidate preflight error', e.message || String(e), candidate.symbol, 0);
+        }
+        // Five-minute cooldown for failed preflights avoids hammering a rejected
+        // symbol and lets the next eligible market reach the execution path.
+        this.entryRetryAfter.set(candidate.symbol, Date.now() + 5 * 60_000);
+      }
+      this.explain('Candidates skipped', `${checked} attempted this pass; ${candidates.length} candidate(s) await preflight or cooldown.`, undefined, 60_000);
     } catch (e: any) { this.lastError = e.message || String(e); this.explain('Trading error', this.lastError || 'Unknown error'); }
     finally { this.busy = false; }
   }
 
-  private async open(candidate: PumpCandidate) {
+  private async open(candidate: PumpCandidate): Promise<boolean> {
     const client = this.engine.getClient();
     // Fresh exchange checks immediately before sending an order.
     const fresh = await client.getPositions(candidate.symbol);
-    if (fresh.some(p => p.side === 'Sell' && Number(p.size) > 0)) { this.explain('Existing SHORT', 'Exchange reports an open SHORT; duplicate entry skipped.', candidate.symbol); return; }
-    if (fresh.some(p => p.side === 'Buy' && Number(p.size) > 0)) { this.explain('Existing BUY', 'Cannot change cross-margin leverage without affecting an existing BUY; entry skipped.', candidate.symbol); return; }
+    if (fresh.some(p => p.side === 'Sell' && Number(p.size) > 0)) { this.explain('Existing SHORT', 'Exchange reports an open SHORT; duplicate entry skipped.', candidate.symbol); return false; }
+    if (fresh.some(p => p.side === 'Buy' && Number(p.size) > 0)) { this.explain('Existing BUY', 'Cannot change cross-margin leverage without affecting an existing BUY; entry skipped.', candidate.symbol); return false; }
     const instrument = (await client.getInstrumentsInfo(candidate.symbol))[candidate.symbol];
     const price = (await client.getTickers(candidate.symbol))[candidate.symbol]?.lastPrice || 0;
-    if (!instrument || instrument.missingRules?.length) { this.explain('Instrument rules', `Missing instrument or rules: ${instrument?.missingRules?.join(', ') || 'instrument unavailable'}`, candidate.symbol); return; }
-    if (!(price > candidate.low)) { this.explain('Price filter', `Current price ${price} must exceed pump wave low ${candidate.low}`, candidate.symbol); return; }
+    if (!instrument || instrument.missingRules?.length) { this.explain('Instrument rules', `Missing instrument or rules: ${instrument?.missingRules?.join(', ') || 'instrument unavailable'}`, candidate.symbol); return false; }
+    if (!(price > candidate.low)) { this.explain('Price filter', `Current price ${price} must exceed pump wave low ${candidate.low}`, candidate.symbol); return false; }
     const settings = this.db.getSettings().pumpShort;
-    if (!settings) { this.explain('Settings unavailable', 'Pump Short settings could not be loaded.', candidate.symbol); return; }
+    if (!settings) { this.explain('Settings unavailable', 'Pump Short settings could not be loaded.', candidate.symbol); return false; }
     const step = instrument.qtyStep;
     const decimals = String(step).split('.')[1]?.length || 0;
     const qty = Number((Math.floor((settings.positionNotionalUsdt / price) / step + 1e-9) * step).toFixed(decimals));
     if (!(qty >= instrument.minQty) || qty > instrument.maxQty || qty * price < instrument.minNotional) {
       this.explain('Order size rejected', `Notional=${settings.positionNotionalUsdt} USDT; qty=${qty}; minQty=${instrument.minQty}; maxQty=${instrument.maxQty}; minNotional=${instrument.minNotional}; price=${price}`, candidate.symbol);
-      return;
+      return false;
     }
     this.engine.assertOrderAllowed(false, 'automated', `Pump Short open ${candidate.symbol}`);
     // The instrument filter alone can exceed the account's active risk tier. Verify the tier
     // and set equal Buy/Sell leverage for cross margin before recording or sending an entry.
     const riskMax = await client.getRiskTierMaxLeverage(candidate.symbol, qty * price);
     let leverage = Math.floor(Math.min(instrument.maxLeverage, riskMax));
-    if (!(leverage >= 1)) { this.explain('Leverage unavailable', `instrument=${instrument.maxLeverage}; risk tier=${riskMax}`, candidate.symbol); return; }
+    if (!(leverage >= 1)) { this.explain('Leverage unavailable', `instrument=${instrument.maxLeverage}; risk tier=${riskMax}`, candidate.symbol); return false; }
     let applied = await client.setLeverage(candidate.symbol, leverage);
     if (!applied.ok) {
       // Bybit may report a stricter account cap than the public tier. Read that explicit cap
@@ -247,7 +263,7 @@ export class PumpShortTrader {
         applied = await client.setLeverage(candidate.symbol, leverage);
       }
     }
-    if (!applied.ok) { this.explain('Leverage rejected', `No entry sent. Requested ${leverage}x; Bybit: ${applied.error}`, candidate.symbol); return; }
+    if (!applied.ok) { this.explain('Leverage rejected', `No entry sent. Requested ${leverage}x; Bybit: ${applied.error}`, candidate.symbol); return false; }
     this.explain('Leverage verified', `${leverage}x confirmed by Bybit for ${qty * price} USDT position`, candidate.symbol, 0);
     const trade: PumpTrade = { id: crypto.randomUUID(), symbol: candidate.symbol, status: 'ENTRY_PENDING',
       entryPrice: price, exitPrice: null, target: pumpShortEntryTarget(price, candidate.low, settings.retracementPct), waveLow: candidate.low,
@@ -263,5 +279,6 @@ export class PumpShortTrader {
       trade.note = `${e.rejected === true ? 'ENTRY rejected' : 'ENTRY status uncertain'}: ${e.message}`;
       this.save(); this.explain('Entry order issue', trade.note, candidate.symbol, 0);
     }
+    return true;
   }
 }
