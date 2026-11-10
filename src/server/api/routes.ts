@@ -57,7 +57,7 @@ apiRouter.get('/settings', (_req: Request, res: Response) => {
 
 // Independent Pump Short configuration: save-only, never places an order.
 apiRouter.get('/pump-short/settings', (_req: Request, res: Response) => {
-  res.json({ settings: db.getSettings().pumpShort || { ...DEFAULT_PUMP_SHORT, positionNotionalUsdt: 30 } });
+  res.json({ settings: { ...DEFAULT_PUMP_SHORT, positionNotionalUsdt: 30, maxPositions: 10, ...db.getSettings().pumpShort } });
 });
 apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
   try {
@@ -66,10 +66,13 @@ apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
       minGrowthPct: Number(req.body?.minGrowthPct),
       retracementPct: Number(req.body?.retracementPct),
       positionNotionalUsdt: Number(req.body?.positionNotionalUsdt),
+      maxPositions: Number(req.body?.maxPositions ?? db.getSettings().pumpShort?.maxPositions ?? 10),
     };
     validatePumpShortSettings(settings);
     if (!Number.isFinite(settings.positionNotionalUsdt) || settings.positionNotionalUsdt <= 0)
       throw new Error('Position size must be greater than zero USDT');
+    if (!Number.isInteger(settings.maxPositions) || settings.maxPositions < 1 || settings.maxPositions > 200)
+      throw new Error('Max positions must be between 1 and 200');
     db.updateSettings({ pumpShort: settings });
     wsServer.broadcastSnapshot();
     res.json({ success: true, settings });

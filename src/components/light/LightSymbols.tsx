@@ -54,6 +54,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
   const [historyLoaded, setHistoryLoaded] = useState(false);
   const [historyBusy, setHistoryBusy] = useState(false);
   const [historyError, setHistoryError] = useState('');
+  const [historyProgress, setHistoryProgress] = useState({ done: 0, total: 0 });
   const frozenSort = useRef(new Map<string, number | string | null>());
   const [dialogSymbol, setDialogSymbol] = useState<string | null>(null);
   const [singleOrder, setSingleOrder] = useState<{ symbol: string; side: 'Buy' | 'Sell'; value: string } | null>(null);
@@ -130,21 +131,37 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
       if (historyBusy) return;
       setHistoryBusy(true); setHistoryError('');
       try {
-        const symbols = data.map(r => r.symbol);
+        const symbols = data.map(r => r.symbol).filter(s => !(s in historyRef.current));
         const chunks: string[][] = [];
-        for (let i = 0; i < symbols.length; i += 50) chunks.push(symbols.slice(i, i + 50));
+        // Small, paced batches avoid Bybit rate limits and overloaded candle-cache requests.
+        for (let i = 0; i < symbols.length; i += 10) chunks.push(symbols.slice(i, i + 10));
         const next = { ...historyRef.current };
-        let index = 0;
+        let index = 0, completed = data.length - symbols.length;
+        setHistoryProgress({ done: completed, total: data.length });
+        const failures: string[] = [];
         const worker = async () => {
           while (index < chunks.length) {
             const chunk = chunks[index++];
-            const response = await fetch('/api/futures/changes?symbols=' + chunk.join(','), { cache: 'no-store' });
-            if (!response.ok) throw Error('Could not load historical changes for all symbols');
-            const payload = await response.json();
-            Object.assign(next, payload.changes || {});
+            let ok = false;
+            for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+              try {
+                const response = await fetch('/api/futures/changes?symbols=' + chunk.join(','), { cache: 'no-store' });
+                if (!response.ok) throw Error(`HTTP ${response.status}`);
+                const payload = await response.json();
+                if (!payload.changes) throw Error('Missing historical data');
+                Object.assign(next, payload.changes);
+                completed += chunk.length; setHistoryProgress({ done: completed, total: data.length });
+                historyRef.current = { ...next }; setHistory({ ...next });
+                ok = true;
+              } catch {
+                if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 600 * (attempt + 1)));
+              }
+            }
+            if (!ok) failures.push(...chunk);
           }
         };
-        await Promise.all([worker(), worker(), worker()]);
+        await Promise.all([worker(), worker()]);
+        if (failures.length) throw Error(`${failures.length} symbols could not be loaded; saved data is kept. Click again to retry missing symbols.`);
         historyRef.current = next; setHistory(next); setHistoryLoaded(true);
       } catch (e: any) { setHistoryError(e.message || 'Historical sort unavailable'); return; }
       finally { setHistoryBusy(false); }
@@ -206,7 +223,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
           <RowsPicker size={size} onSize={reset(setSize)} />
           <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-side" value={sideF} options={[{value:'all',label:'All Sides'},{value:'BUY',label:'BUY'},{value:'SELL',label:'SHORT'}]} onChange={reset(setSideF)}/>
         </div>
-        {historyBusy && <div role="status" className="ft-muted">Loading historical percentages for all symbols before sorting…</div>}
+        {historyBusy && <div role="status" className="ft-muted">Loading historical changes: {historyProgress.done} / {historyProgress.total} symbols…</div>}
         {historyError && <div role="alert" className="lp-error">{historyError} — click the column again to retry.</div>}
         <div className="table-wrap" role="region" tabIndex={0} aria-label="Symbols table">
           <table className="lp-table symbols-table" data-testid="symbols-table">

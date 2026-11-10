@@ -54,7 +54,7 @@ const Unavailable2: React.FC<{ legend: string; a: string; b: string }> = ({ lege
 export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh: () => void }> = ({ state, onRefresh }) => {
   const account = useRead<AccountInfo>('/api/auth/account', 120000);
   const [toast, showToast] = useToast();
-  const [pump, setPump] = useState({ minGrowthPct: '20', lookbackDays: '10', retracementPct: '50', positionNotionalUsdt: '30' });
+  const [pump, setPump] = useState({ minGrowthPct: '20', lookbackDays: '10', retracementPct: '50', positionNotionalUsdt: '30', maxPositions: '10' });
   const [pumpSaving, setPumpSaving] = useState(false);
   const [pumpStatus, setPumpStatus] = useState<string | null>(null);
   const [pumpError, setPumpError] = useState<string | null>(null);
@@ -82,13 +82,13 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
       const d = await r.json();
       if (!r.ok || !d.settings) throw Error(d.error || 'Cannot load Pump Short settings');
       const s = d.settings;
-      setPump({ minGrowthPct: String(s.minGrowthPct), lookbackDays: String(s.lookbackDays), retracementPct: String(s.retracementPct), positionNotionalUsdt: String(s.positionNotionalUsdt) });
+      setPump({ minGrowthPct: String(s.minGrowthPct), lookbackDays: String(s.lookbackDays), retracementPct: String(s.retracementPct), positionNotionalUsdt: String(s.positionNotionalUsdt), maxPositions: String(s.maxPositions ?? 10) });
     }).catch(e => setPumpError(e.message));
   }, []);
   const savePump = async () => {
-    const body = { minGrowthPct: Number(pump.minGrowthPct), lookbackDays: Number(pump.lookbackDays), retracementPct: Number(pump.retracementPct), positionNotionalUsdt: Number(pump.positionNotionalUsdt) };
-    if (Object.values(pump).some(v => v.trim() === '') || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365 || body.minGrowthPct <= 0 || body.retracementPct <= 0 || body.retracementPct > 100 || body.positionNotionalUsdt <= 0 || !Object.values(body).every(Number.isFinite)) {
-      setPumpError('Enter valid positive values; days 1–365 and exit retracement 1–100%.');
+    const body = { minGrowthPct: Number(pump.minGrowthPct), lookbackDays: Number(pump.lookbackDays), retracementPct: Number(pump.retracementPct), positionNotionalUsdt: Number(pump.positionNotionalUsdt), maxPositions: Number(pump.maxPositions) };
+    if (Object.values(pump).some(v => v.trim() === '') || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365 || body.minGrowthPct <= 0 || body.retracementPct <= 0 || body.retracementPct > 100 || body.positionNotionalUsdt <= 0 || !Number.isInteger(body.maxPositions) || body.maxPositions < 1 || body.maxPositions > 200 || !Object.values(body).every(Number.isFinite)) {
+      setPumpError('Enter valid values; days 1–365, exit 1–100%, max positions 1–200.');
       return;
     }
     setPumpSaving(true); setPumpError(null); setPumpStatus(null);
@@ -246,6 +246,7 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
           <label style={labelStyle()}>Lookback (days)<input aria-label="Pump lookback days" type="number" min="1" max="365" step="1" value={pump.lookbackDays} onChange={e => setPump(p => ({ ...p, lookbackDays: e.target.value }))} /></label>
           <label style={labelStyle()}>Exit retracement (%)<input aria-label="Pump exit retracement percent" type="number" min="1" max="100" step="0.1" value={pump.retracementPct} onChange={e => setPump(p => ({ ...p, retracementPct: e.target.value }))} /></label>
           <label style={labelStyle()}>Position size (USDT)<input aria-label="Pump position size USDT" type="number" min="0.01" step="0.01" value={pump.positionNotionalUsdt} onChange={e => setPump(p => ({ ...p, positionNotionalUsdt: e.target.value }))} /></label>
+          <label style={labelStyle()}>Max Pump Positions<input aria-label="Pump max positions" type="number" min="1" max="200" step="1" value={pump.maxPositions} onChange={e => setPump(p => ({ ...p, maxPositions: e.target.value }))} /></label>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 12 }}>
           <span style={{ fontSize: 12 }}>Pump Short: <strong className={pumpExecution?.armed ? 'green' : 'red'}>{pumpExecution?.armed ? 'ARMED' : 'DISARMED'}</strong></span>

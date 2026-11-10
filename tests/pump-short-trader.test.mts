@@ -12,12 +12,15 @@ test('Pump Short never sends orders unless explicitly armed in REAL mode', async
   try {
     let mode = 'SIMULATION';
     const orders: any[] = [];
-    const instrument = { symbol: 'TESTUSDT', missingRules: [], qtyStep: 0.1,
+    const selectedLeverages: number[] = [];
+    const instrument = { symbol: 'TESTUSDT', missingRules: [], maxLeverage: 25, qtyStep: 0.1,
       minQty: 0.1, maxQty: 10000, minNotional: 5 };
     const client = {
       getPositions: async () => [],
       getInstrumentsInfo: async () => ({ TESTUSDT: instrument }),
       getTickers: async () => ({ TESTUSDT: { lastPrice: 120 } }),
+      getRiskTierMaxLeverage: async () => 10,
+      setLeverage: async (_symbol: string, buy: number, sell: number = buy) => { assert.equal(buy, sell); selectedLeverages.push(buy); return { ok: true }; },
       createOrder: async (o: any) => { orders.push(o); return { orderId: 'test', orderLinkId: o.orderLinkId }; },
     };
     const engine = { getTradingMode: () => mode, getClient: () => client,
@@ -36,7 +39,8 @@ test('Pump Short never sends orders unless explicitly armed in REAL mode', async
     assert.equal(orders.length, 0);
     trader.arm(true);
     await (trader as any).tick();
-    assert.equal(orders.length, 1);
+    assert.equal(orders.length, 1, JSON.stringify(trader.snapshot()));
+    assert.deepEqual(selectedLeverages, [10], 'leverage must respect verified Bybit risk tier');
     assert.equal(orders[0].side, 'Sell');
     assert.equal(orders[0].positionIdx, 2);
     assert.equal(orders[0].reduceOnly, false);

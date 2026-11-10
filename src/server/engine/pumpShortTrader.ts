@@ -63,7 +63,7 @@ export class PumpShortTrader {
     if (this.db.getSettings().emergencyStop) throw Error('Emergency stop is active');
     if (this.lastError?.startsWith('Cannot read Pump Short ledger')) throw Error(this.lastError);
     this.armed = true;
-    this.db.addLog('SECURITY', 'Pump Short ARMED', 'Explicitly armed REAL Pump Short trading; max 10 active/pending positions');
+    this.db.addLog('SECURITY', 'Pump Short ARMED', `Explicitly armed REAL Pump Short trading; max ${this.db.getSettings().pumpShort?.maxPositions ?? 10} active/pending positions`);
   }
   public disarm() { this.armed = false; this.db.addLog('SECURITY', 'Pump Short DISARMED', 'Pump Short execution stopped'); }
 
@@ -148,7 +148,8 @@ export class PumpShortTrader {
       }
       // One new order per pass, and no more than ten owned open/pending shorts overall.
       const occupied = this.trades.filter(t => t.status !== 'CLOSED').length;
-      if (occupied >= 10) { this.explain('Position limit', `${occupied}/10 Pump Short positions or unresolved records; no new orders until slots are available.`); return; }
+      const maxPositions = this.db.getSettings().pumpShort?.maxPositions ?? 10;
+      if (occupied >= maxPositions) { this.explain('Position limit', `${occupied}/${maxPositions} Pump Short positions or unresolved records; no new orders until slots are available.`); return; }
       const existing = new Set(positions.filter(p => p.side === 'Sell' && Number(p.size) > 0).map(p => String(p.symbol)));
       const candidate = scan.candidates.find(c => !c.excludedShort && !existing.has(c.symbol) &&
         !this.trades.some(t => t.symbol === c.symbol && t.status !== 'CLOSED'));
@@ -163,6 +164,7 @@ export class PumpShortTrader {
     // Fresh exchange checks immediately before sending an order.
     const fresh = await client.getPositions(candidate.symbol);
     if (fresh.some(p => p.side === 'Sell' && Number(p.size) > 0)) { this.explain('Existing SHORT', 'Exchange reports an open SHORT; duplicate entry skipped.', candidate.symbol); return; }
+    if (fresh.some(p => p.side === 'Buy' && Number(p.size) > 0)) { this.explain('Existing BUY', 'Cannot change cross-margin leverage without affecting an existing BUY; entry skipped.', candidate.symbol); return; }
     const instrument = (await client.getInstrumentsInfo(candidate.symbol))[candidate.symbol];
     const price = (await client.getTickers(candidate.symbol))[candidate.symbol]?.lastPrice || 0;
     if (!instrument || instrument.missingRules?.length) { this.explain('Instrument rules', `Missing instrument or rules: ${instrument?.missingRules?.join(', ') || 'instrument unavailable'}`, candidate.symbol); return; }
@@ -177,6 +179,24 @@ export class PumpShortTrader {
       return;
     }
     this.engine.assertOrderAllowed(false, 'automated', `Pump Short open ${candidate.symbol}`);
+    // The instrument filter alone can exceed the account's active risk tier. Verify the tier
+    // and set equal Buy/Sell leverage for cross margin before recording or sending an entry.
+    const riskMax = await client.getRiskTierMaxLeverage(candidate.symbol, qty * price);
+    let leverage = Math.floor(Math.min(instrument.maxLeverage, riskMax));
+    if (!(leverage >= 1)) { this.explain('Leverage unavailable', `instrument=${instrument.maxLeverage}; risk tier=${riskMax}`, candidate.symbol); return; }
+    let applied = await client.setLeverage(candidate.symbol, leverage);
+    if (!applied.ok) {
+      // Bybit may report a stricter account cap than the public tier. Read that explicit cap
+      // from 110013 instead of blindly submitting an order with the wrong leverage.
+      const limit = /maxLeverage\s*\[(\d+)\]/i.exec(applied.error || '');
+      const cap = limit ? Number(limit[1]) / 100 : NaN;
+      if (Number.isFinite(cap) && cap >= 1 && cap < leverage) {
+        leverage = Math.floor(cap);
+        applied = await client.setLeverage(candidate.symbol, leverage);
+      }
+    }
+    if (!applied.ok) { this.explain('Leverage rejected', `No entry sent. Requested ${leverage}x; Bybit: ${applied.error}`, candidate.symbol); return; }
+    this.explain('Leverage verified', `${leverage}x confirmed by Bybit for ${qty * price} USDT position`, candidate.symbol, 0);
     const trade: PumpTrade = { id: crypto.randomUUID(), symbol: candidate.symbol, status: 'ENTRY_PENDING',
       entryPrice: price, exitPrice: null, target: pumpShortEntryTarget(price, candidate.low, settings.retracementPct), waveLow: candidate.low,
       waveHigh: candidate.high, qty, entryAt: Date.now(), exitAt: null,

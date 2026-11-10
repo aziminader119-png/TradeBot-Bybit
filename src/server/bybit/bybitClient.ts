@@ -712,6 +712,19 @@ export class BybitClient {
     }
   }
 
+  /** Public risk-tier limit for an intended order value; fail closed when Bybit cannot verify it. */
+  public async getRiskTierMaxLeverage(symbol: string, notionalUsdt: number): Promise<number> {
+    const res = await this.request('GET', '/v5/market/risk-limit', { category: 'linear', symbol }, false);
+    if (res.retCode !== 0) throw retError(res, '/v5/market/risk-limit');
+    const tiers = (res.result?.list || []).filter((r: any) => r.symbol === symbol)
+      .map((r: any) => ({ value: Number(r.riskLimitValue), leverage: Number(r.maxLeverage) }))
+      .filter((r: any) => Number.isFinite(r.value) && r.value > 0 && Number.isFinite(r.leverage) && r.leverage >= 1)
+      .sort((a: any, b: any) => a.value - b.value);
+    const tier = tiers.find((t: any) => t.value >= notionalUsdt);
+    if (!tier) throw Error(`No verified Bybit risk tier for ${symbol} / ${notionalUsdt} USDT`);
+    return tier.leverage;
+  }
+
   // 7. Switch Position Mode to Hedge (mode 3)
   public async switchHedgeMode(symbol: string): Promise<boolean> {
     this.assertTrading('switch-mode');

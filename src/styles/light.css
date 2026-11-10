@@ -188,6 +188,7 @@ html .sidebar .nav a .nav-count{margin-left:-7px;flex:none;color:#8d9098;font-si
 .page-dashboard .table-wrap{width:100%;overflow-x:auto;overflow-y:visible;border-top:1px solid #23232b}
 .page-dashboard .lp-table{width:100%;border-collapse:collapse;table-layout:fixed;font-variant-numeric:tabular-nums}
 .page-dashboard .symbols-table{min-width:1180px}
+.page-dashboard .pump-positions-table .lp-table{min-width:1500px}
 .page-dashboard .botpos-table{min-width:1180px}
 .page-dashboard .lp-table th{color:var(--text);font-weight:500;font-size:12px;text-align:left;border-bottom:1px solid var(--border);padding:11px 4px;white-space:nowrap;background:#101014;overflow:hidden;text-overflow:ellipsis}
 .page-dashboard .lp-table th.sort{cursor:pointer;user-select:none}

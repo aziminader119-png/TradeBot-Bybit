@@ -49,7 +49,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   emergencyStop: false,
   soundAlerts: true,
   autoReconcileIntervalSec: 10,
-  pumpShort: { lookbackDays: 10, minGrowthPct: 20, retracementPct: 50, positionNotionalUsdt: 30 },
+  pumpShort: { lookbackDays: 10, minGrowthPct: 20, retracementPct: 50, positionNotionalUsdt: 30, maxPositions: 10 },
   defaultPositionSizeLong: 10,
   defaultPositionSizeShort: 10,
   defaultTpPctLong: 5.0,

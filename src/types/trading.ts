@@ -122,7 +122,7 @@ export interface GlobalSettings {
   // Aged Positions page defaults (display filter only): minimum age, optional maximum age, in hours
   agedPositions?: AgedSettings;
   /** Independent Pump Short module settings. Does not alter legacy hedge strategies. */
-  pumpShort?: { lookbackDays: number; minGrowthPct: number; retracementPct: number; positionNotionalUsdt: number };
+  pumpShort?: { lookbackDays: number; minGrowthPct: number; retracementPct: number; positionNotionalUsdt: number; maxPositions?: number };
 }
 
 export interface RiskThresholds { deepLossPct: number; deepProfitPct: number; highMarginUsdt: number }

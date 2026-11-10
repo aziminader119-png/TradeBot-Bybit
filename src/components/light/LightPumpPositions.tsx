@@ -1,35 +1,60 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { ReportSummary, ReportTable, type ReportColumn, type ReportRow } from './reports.tsx';
 
 type PumpTrade = { id: string; symbol: string; status: string; entryPrice: number; exitPrice: number | null;
   target: number; waveLow: number; waveHigh: number; qty: number; entryAt: number; exitAt: number | null; note: string | null;
   markPrice: number | null; unrealizedPnl: number | null };
 type Snapshot = { armed: boolean; mode: string; busy: boolean; error: string | null; trades: PumpTrade[] };
-const price = (n: number | null) => n == null ? '—' : n.toLocaleString('en-US', { maximumFractionDigits: 8 });
-const when = (n: number | null) => n == null ? '—' : new Date(n).toLocaleString();
+
+const columns: ReportColumn[] = [
+  { key: 'symbol', label: 'Symbol' }, { key: 'side', label: 'Side', format: 'side' },
+  { key: 'size', label: 'Size', format: 'number' }, { key: 'value', label: 'Value (USDT)', format: 'number' },
+  { key: 'entry', label: 'Entry', format: 'price' }, { key: 'mark', label: 'Mark', format: 'price' },
+  { key: 'exit', label: 'Exit', format: 'price' }, { key: 'target', label: 'Exit Target', format: 'price' },
+  { key: 'waveLow', label: 'Wave Low', format: 'price' }, { key: 'waveHigh', label: 'Wave High', format: 'price' },
+  { key: 'opened', label: 'Opened', format: 'time' }, { key: 'closed', label: 'Closed', format: 'time' },
+  { key: 'pnl', label: 'P&L (USDT)', format: 'pnl' }, { key: 'status', label: 'Status' },
+];
+
+function asRow(t: PumpTrade): ReportRow {
+  const pnl = t.status === 'CLOSED' && t.exitPrice != null ? (t.entryPrice - t.exitPrice) * t.qty : t.unrealizedPnl;
+  return { id: t.id, symbol: t.symbol, side: 'Sell', size: t.qty, value: t.qty * t.entryPrice,
+    entry: t.entryPrice, mark: t.markPrice, exit: t.exitPrice, target: t.target,
+    waveLow: t.waveLow, waveHigh: t.waveHigh, opened: t.entryAt, closed: t.exitAt,
+    pnl, status: t.note ? `${t.status} — ${t.note}` : t.status };
+}
 
 export function LightPumpPositions() {
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const refresh = () => fetch('/api/pump-short/positions').then(async r => {
-    const d = await r.json(); if (!r.ok) throw Error(d.error || 'Cannot load Pump Short positions'); setData(d);
-  }).catch(e => setError(e.message));
-  useEffect(() => { void refresh(); const timer = setInterval(() => void refresh(), 5000); return () => clearInterval(timer); }, []);
-  const trades = data?.trades || [];
-  const open = trades.filter(t => t.status !== 'CLOSED');
-  const closed = trades.filter(t => t.status === 'CLOSED');
-  const Table = ({ items }: { items: PumpTrade[] }) => <div className="table-wrap" style={{ overflowX: 'auto' }}><table className="lp-table">
-    <thead><tr><th>Symbol</th><th>Side</th><th>Size</th><th>Position Value (USDT)</th><th>Entry</th><th>Mark</th><th>Exit</th><th>Exit Target</th><th>Wave Low</th><th>Wave High</th><th>Opened</th><th>Closed</th><th>P&L</th><th>Status</th></tr></thead>
-    <tbody>{items.map(t => { const pnl = t.status === 'CLOSED' && t.exitPrice != null ? (t.entryPrice - t.exitPrice) * t.qty : t.unrealizedPnl;
-      return <tr key={t.id} title={t.note || undefined}>
-        <td>{t.symbol}</td><td style={{ color: '#ED4F5D' }}>SHORT</td><td>{price(t.qty)}</td><td>{(t.qty * t.entryPrice).toFixed(2)} USDT</td>
-        <td>{price(t.entryPrice)}</td><td>{price(t.markPrice)}</td><td>{price(t.exitPrice)}</td><td>{price(t.target)}</td>
-        <td>{price(t.waveLow)}</td><td>{price(t.waveHigh)}</td><td>{when(t.entryAt)}</td><td>{when(t.exitAt)}</td>
-        <td style={{ color: pnl == null ? undefined : pnl >= 0 ? '#39AA77' : '#ED4F5D' }}>{pnl == null ? '—' : `${pnl.toFixed(4)} USDT*`}</td>
-        <td>{t.status}{t.note ? ` — ${t.note}` : ''}</td></tr>; })}</tbody>
-  </table>{!items.length && <p>No positions in this section.</p>}</div>;
-  return <div className="content" data-testid="pump-positions-page">
-    {(error || data?.error) && <p role="alert" className="field-error">{error || data?.error}</p>}
-    <section className="section"><div className="legend">Open & Pending Pump Positions</div><Table items={open} /></section>
-    <section className="section"><div className="legend">Closed Pump Positions</div><Table items={closed} /></section>
+  useEffect(() => {
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const response = await fetch('/api/pump-short/positions');
+        const body = await response.json();
+        if (!response.ok) throw Error(body.error || 'Cannot load Pump Short positions');
+        if (alive) { setData(body); setError(null); }
+      } catch (e: any) { if (alive) setError(e.message); }
+    };
+    void refresh(); const timer = setInterval(() => void refresh(), 5000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
+  const rows = useMemo(() => (data?.trades || []).map(asRow), [data?.trades]);
+  const open = rows.filter(r => !String(r.status).startsWith('CLOSED'));
+  const closed = rows.filter(r => String(r.status).startsWith('CLOSED'));
+  const totalPnl = rows.reduce((sum, row) => sum + (typeof row.pnl === 'number' ? row.pnl : 0), 0);
+  return <div className="workspace pump-positions-page" data-testid="pump-positions-page">
+    {(error || data?.error) && <p role="alert" className="lp-error">{error || data?.error}</p>}
+    <section className="lp-panel symbols-overview">
+      <div className="section-title">Pump Short Positions</div>
+      <ReportSummary items={[
+        ['Open / Pending', open.length], ['Closed', closed.length],
+        ['Execution', data?.armed ? 'ARMED' : 'DISARMED'],
+        ['Total P&L (USDT)', totalPnl.toFixed(4)],
+      ]} />
+    </section>
+    <section className="lp-panel pump-positions-table"><ReportTable title="Open & Pending Pump Positions" rows={open} columns={columns} empty="No open Pump Short positions." /></section>
+    <section className="lp-panel pump-positions-table"><ReportTable title="Closed Pump Positions" rows={closed} columns={columns} empty="No closed Pump Short positions." /></section>
   </div>;
 }
