@@ -80,13 +80,15 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
   const managedIds = new Set<string>(state?.systemMetrics?.managedCycleIds || []);
   const running = state?.systemMetrics?.tradingState === 'RUNNING';
 
-  const data = useMemo(() => (synced || []).filter((p) => (!fixedSymbol || p.symbol === fixedSymbol) && inPositionView(p, view, { cycles, thresholds, now, minHours, maxHours })).map((p) => {
+  const data = useMemo(() => (synced || []).filter((p) => (!fixedSymbol || p.symbol === fixedSymbol) &&
+    !(view === 'external' && p.side === 'Sell' && pumpBySymbol.has(p.symbol)) &&
+    inPositionView(p, view, { cycles, thresholds, now, minHours, maxHours })).map((p) => {
     const c = cycles[p.symbol];
     const st = p.owner === 'bot' ? status(p, c, managedIds, running) : { text: 'External', cls: '', rank: 3 };
     const tp = p.owner === 'bot' ? botTp(p, c, strategies[p.symbol]) : p.tpPrice > 0 ? { price: p.tpPrice, pct: 0 } : null;
     const opened = typeof p.cycleStartTime === 'number' && p.cycleStartTime > 0 ? p.cycleStartTime : null;
     return { p, st, tp, opened };
-  }), [synced, cycles, strategies, state?.systemMetrics, view, minHours, maxHours, now, threshold, thresholds, fixedSymbol]);
+  }), [synced, cycles, strategies, state?.systemMetrics, view, minHours, maxHours, now, threshold, thresholds, fixedSymbol, pumpOwnership.trades]);
   type D = (typeof data)[number];
 
   const sum = useMemo(() => {
