@@ -1,0 +1,6 @@
+{
+  "name": "Bybit Perpetual Master Bot",
+  "description": "Professional Bybit USDT Perpetual algorithmic trading engine with independent hedge mode cycles, real price movement TP/MART/Freeze, position ownership management, and real-time dashboard.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

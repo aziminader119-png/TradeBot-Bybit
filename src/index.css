@@ -1,0 +1,186 @@
+@import "tailwindcss";
+@import "./styles/terminal.css";
+@import "./styles/light.css";
+@import "./components/light/pnlReference.css";
+@import "./components/notifications/tradeAlerts.css";
+@import "./styles/responsive.css";
+/* Phase 4.3: do not scan the bot's data files, tests or archives for class names */
+@source not "../data";
+@source not "../tests";
+@source not "../public/assets";
+
+:root {
+  color-scheme: dark;
+  --bg: #101014;
+  --side: #111115;
+  --panel: #131317;
+  --panel2: #171717;
+  --border: #26262b;
+  --text: #fafafa;
+  --secondary: #adb1b8;
+  --muted: #8d9098;
+  --green: #39aa77;
+  --red: #ed4f5d;
+  --orange: #dda052;
+  --tb-orange: #dda052;
+  --tb-green: #39aa77;
+  --tb-red: #ed4f5d;
+  --tb-text: #fafafa;
+  --tb-muted: #8d9098;
+  --line: #29292f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Base page settings */
+@layer base {
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--secondary);
+    font-family: 'Vazirmatn', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-size: 13.5px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    direction: ltr;
+  }
+  /* Page scrolling: only the viewport scrolls vertically.
+     overflow-x: hidden on BOTH html and body made <body> its own scroll container that can never scroll; with the
+     design's overscroll-behavior: none, wheel/touch scrolling started on <body> never reached the page.
+     html: hidden (applied to the viewport); body: clip (cuts sideways overflow without creating a scroll container). */
+  html {
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-width: auto;
+    scrollbar-color: #475569 #070e1d;
+  }
+  body {
+    overflow-x: clip;
+    overflow-y: visible;
+  }
+}
+
+/* Visible scrollbars in the design colours (Chrome/Edge 121+ and Firefox use scrollbar-color/-width above;
+   Safari and older Chromium use these). */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: #070e1d;
+}
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 5px;
+  border: 2px solid #070e1d;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Legacy pages (Symbols, Bot Cycles, Positions) keep their old element styles; scoped to .tb-legacy so they
+   never override the dashboard design's Tailwind classes. */
+.tb-legacy {
+  color: var(--secondary);
+  font-family: 'Vazirmatn', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.tb-legacy :is(button, input, select) {
+  font: inherit;
+}
+.tb-legacy button {
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.tb-legacy a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* (old layout rules for the removed sidebar/header/workspace were deleted; the dashboard uses src/styles/light.css) */
+
+/* Tables */
+.positions-shell, .table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.tb-legacy table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 13px;
+}
+
+.tb-legacy th {
+  background: var(--bg);
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 11.5px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  padding: 10px 4px;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.tb-legacy td {
+  border-bottom: 1px solid #222229;
+  padding: 10px 4px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  vertical-align: middle;
+  color: var(--text);
+}
+
+.tb-legacy tbody tr:hover td {
+  background: #15151c;
+}
+
+/* Phase 5: dashboard tables size their columns to content and wrap long cells */
+.tb-auto table, table.tb-auto { table-layout: auto; }
+.tb-auto td { white-space: normal; vertical-align: top; }
+
+/* Approved site-wide palette sampled from the supplied screenshots. */
+:root,.page-dashboard{
+ --bg:#101014;--side:#111115;--panel:#131317;--border:#282832;
+ --text:#fafafa;--white:#fafafa;--secondary:#adb1b8;--muted:#8d9098;
+ --blue:#3d6bff;--green:#39aa77;--red:#ed4f5d;--orange:#dda052;
+ --tb-green:#39aa77;--tb-red:#ed4f5d;--tb-text:#fafafa;
+ --t-void:#101014;--t-surface:#101014;--t-panel:#111115;--t-panel-low:#131317;--t-elev:#17171c;--t-high:#202027;
+ --t-border:#282832;--t-border-accent:#34343c;--t-border-int:#474750;
+ --t-text:#fafafa;--t-text-2:#adb1b8;--t-text-3:#8d9098;
+ --t-green:#39aa77;--t-green-2:#39aa77;--t-green-3:#39aa77;
+ --t-red:#ed4f5d;--t-red-2:#ed4f5d;--t-red-3:#ed4f5d;--t-cyan:#3d6bff;--t-cyan-2:#3d6bff;
+}
+html,body,#root{background:var(--bg)}
+.page-dashboard .sidebar .nav a.active{background:transparent!important;color:var(--blue)!important}
+.page-dashboard .sidebar .nav a.active .nav-count{color:var(--white)!important}
+.page-dashboard .sidebar .sidebar-credit strong{color:var(--white)!important}
+.page-dashboard .lp-toolbar button.active,.page-dashboard .management-filter button.active,.page-dashboard .pagination .pg,.page-dashboard .lp-table th.sorted{color:var(--blue)!important}
+.page-dashboard .modal-btn-primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.page-dashboard .header-start-text:not(.is-on){color:var(--blue)}
+.page-dashboard .sidebar .nav a:hover{color:var(--orange)!important}
+.page-dashboard .top,.page-dashboard .section .legend,.page-dashboard .aged-table-title span{background:var(--bg)}
+.page-dashboard .green{color:var(--green)!important}.page-dashboard .red{color:var(--red)!important}
+.t-modal .t-btn.long{background:var(--blue);border-color:var(--blue);color:#fff}
+.t-modal .t-btn.long:hover:not(:disabled){background:#2e58e8;color:#fff}
+.t-modal .t-btn.short{background:var(--blue);border-color:var(--blue);color:#fff}
+.t-modal .t-btn.short:hover:not(:disabled){background:#2e58e8;color:#fff}
+html{scrollbar-color:#474750 #101014}
+::-webkit-scrollbar-track{background:#101014}::-webkit-scrollbar-thumb{background:#474750}
+
+
