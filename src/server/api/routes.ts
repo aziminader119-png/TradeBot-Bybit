@@ -7,6 +7,8 @@ import { BotDatabase } from '../db/database.ts';
 import { TradingEngine } from '../engine/tradingEngine.ts';
 import { AppWebSocketServer } from './wsServer.ts';
 import { BybitClient, BYBIT_REST_HOSTS, cleanCredential } from '../bybit/bybitClient.ts';
+import { DEFAULT_PUMP_SHORT, validatePumpShortSettings } from '../engine/pumpShort.ts';
+import { PumpShortScanner } from '../engine/pumpShortScanner.ts';
 
 export const apiRouter = Router();
 apiRouter.use('/futures',futuresRouter);
@@ -14,6 +16,7 @@ apiRouter.use('/indicator-alerts',alertsRouter);
 
 const db = BotDatabase.getInstance();
 const engine = TradingEngine.getInstance();
+const pumpScanner = new PumpShortScanner(engine.getClient(), db);
 const wsServer = AppWebSocketServer.getInstance();
 
 // Phase 1 helpers -----------------------------------------------------------
@@ -46,6 +49,34 @@ apiRouter.get('/state', (_req: Request, res: Response) => {
 // 1b. Get global settings
 apiRouter.get('/settings', (_req: Request, res: Response) => {
   res.json(db.getPublicSettings());
+});
+
+// Independent Pump Short configuration: save-only, never places an order.
+apiRouter.get('/pump-short/settings', (_req: Request, res: Response) => {
+  res.json({ settings: db.getSettings().pumpShort || { ...DEFAULT_PUMP_SHORT, positionNotionalUsdt: 30 } });
+});
+apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
+  try {
+    const settings = {
+      lookbackDays: Number(req.body?.lookbackDays),
+      minGrowthPct: Number(req.body?.minGrowthPct),
+      retracementPct: Number(req.body?.retracementPct),
+      positionNotionalUsdt: Number(req.body?.positionNotionalUsdt),
+    };
+    validatePumpShortSettings(settings);
+    if (!Number.isFinite(settings.positionNotionalUsdt) || settings.positionNotionalUsdt <= 0)
+      throw new Error('Position size must be greater than zero USDT');
+    db.updateSettings({ pumpShort: settings });
+    wsServer.broadcastSnapshot();
+    res.json({ success: true, settings });
+  } catch (error: any) {
+    res.status(400).json({ success: false, error: error.message || 'Invalid Pump Short settings' });
+  }
+});
+apiRouter.get('/pump-short/scan', (_req: Request, res: Response) => res.json(pumpScanner.snapshot()));
+apiRouter.post('/pump-short/scan', (_req: Request, res: Response) => {
+  if (!pumpScanner.snapshot().running) void pumpScanner.scan();
+  res.json({ success: true, ...pumpScanner.snapshot() });
 });
 
 // 1c. Pause / resume automated trading (always PAUSED after a restart)

@@ -54,6 +54,34 @@ const Unavailable2: React.FC<{ legend: string; a: string; b: string }> = ({ lege
 export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh: () => void }> = ({ state, onRefresh }) => {
   const account = useRead<AccountInfo>('/api/auth/account', 120000);
   const [toast, showToast] = useToast();
+  const [pump, setPump] = useState({ minGrowthPct: '20', lookbackDays: '10', retracementPct: '50', positionNotionalUsdt: '30' });
+  const [pumpSaving, setPumpSaving] = useState(false);
+  const [pumpStatus, setPumpStatus] = useState<string | null>(null);
+  const [pumpError, setPumpError] = useState<string | null>(null);
+  useEffect(() => {
+    fetch('/api/pump-short/settings').then(async r => {
+      const d = await r.json();
+      if (!r.ok || !d.settings) throw Error(d.error || 'Cannot load Pump Short settings');
+      const s = d.settings;
+      setPump({ minGrowthPct: String(s.minGrowthPct), lookbackDays: String(s.lookbackDays), retracementPct: String(s.retracementPct), positionNotionalUsdt: String(s.positionNotionalUsdt) });
+    }).catch(e => setPumpError(e.message));
+  }, []);
+  const savePump = async () => {
+    const body = { minGrowthPct: Number(pump.minGrowthPct), lookbackDays: Number(pump.lookbackDays), retracementPct: Number(pump.retracementPct), positionNotionalUsdt: Number(pump.positionNotionalUsdt) };
+    if (Object.values(pump).some(v => v.trim() === '') || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365 || body.minGrowthPct <= 0 || body.retracementPct <= 0 || body.retracementPct > 100 || body.positionNotionalUsdt <= 0 || !Object.values(body).every(Number.isFinite)) {
+      setPumpError('Enter valid positive values; days 1–365 and exit retracement 1–100%.');
+      return;
+    }
+    setPumpSaving(true); setPumpError(null); setPumpStatus(null);
+    try {
+      const r = await postJson('/api/pump-short/settings', body);
+      if (!r.ok) throw Error(r.data?.error || `HTTP ${r.status}`);
+      setPumpStatus('Saved on server');
+      showToast('Pump Short settings saved');
+      onRefresh();
+    } catch (e: any) { setPumpError(e.message); }
+    finally { setPumpSaving(false); }
+  };
   const [hedge, setHedge] = useState<Hedge | null>(null);
   const [hedgeLoading,setHedgeLoading]=useState(true),[hedgeLoadError,setHedgeLoadError]=useState<string|null>(null);
   const [mode, setMode] = useState<'CUSTOM' | 'MINIMUM'>('CUSTOM');
@@ -193,6 +221,15 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const bs = (k: string) => boxState[k] || {};
   return (
     <div className="content" data-testid="terminal-dashboard">
+      <Box legend="Pump Short — New Strategy" testid="pump-short-settings" onSave={savePump} saving={pumpSaving} status={pumpStatus} error={pumpError}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 12 }}>
+          <label style={labelStyle()}>Growth threshold (%)<input aria-label="Pump growth percent" type="number" min="0.1" step="0.1" value={pump.minGrowthPct} onChange={e => setPump(p => ({ ...p, minGrowthPct: e.target.value }))} /></label>
+          <label style={labelStyle()}>Lookback (days)<input aria-label="Pump lookback days" type="number" min="1" max="365" step="1" value={pump.lookbackDays} onChange={e => setPump(p => ({ ...p, lookbackDays: e.target.value }))} /></label>
+          <label style={labelStyle()}>Exit retracement (%)<input aria-label="Pump exit retracement percent" type="number" min="1" max="100" step="0.1" value={pump.retracementPct} onChange={e => setPump(p => ({ ...p, retracementPct: e.target.value }))} /></label>
+          <label style={labelStyle()}>Position size (USDT)<input aria-label="Pump position size USDT" type="number" min="0.01" step="0.01" value={pump.positionNotionalUsdt} onChange={e => setPump(p => ({ ...p, positionNotionalUsdt: e.target.value }))} /></label>
+        </div>
+        <small style={{ opacity: 0.7 }}>Independent settings only. Pump Short order execution is not enabled; existing strategies are unchanged.</small>
+      </Box>
       {hedgeLoading&&<p role="status">Loading strategy settings…</p>}
       {hedgeLoadError&&<p className="lp-error" role="alert">{hedgeLoadError} <button type="button" onClick={()=>void loadHedge()}>Retry</button></p>}
       <section className="section" data-testid="bot-status"><div className="legend">Bot Status</div>

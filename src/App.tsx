@@ -12,6 +12,7 @@ import {usePageRoute,navigate,PAGE_PATHS,symbolPath} from './components/light/na
 import { useBotState } from './hooks/useBotState.ts';
 import { LightShell } from './components/light/LightShell.tsx';
 import { LightDashboard } from './components/light/LightDashboard.tsx';
+const LightPumpShort = lazy(() => import('./components/light/LightPumpShort.tsx').then(module => ({default: module.LightPumpShort})));
 const LightSymbols = lazy(() => import('./components/light/LightSymbols.tsx').then(module => ({default: module.LightSymbols})));
 const LightBotPositions = lazy(() => import('./components/light/LightBotPositions.tsx').then(module => ({default: module.LightBotPositions})));
 const BotCyclesView = lazy(() => import('./components/views/BotCyclesView.tsx').then(module => ({default: module.BotCyclesView})));
@@ -36,6 +37,7 @@ export default function App() {
       <Suspense fallback={<div className="workspace" role="status">Loading page…</div>}>
       {activeTab === 'not_found' && <div className="content"><h2>Page not found</h2><a href="/Dashboard">Dashboard</a></div>}
       {activeTab === 'dashboard' && <LightDashboard state={state} onRefresh={refresh} />}
+      {activeTab === 'pump_short' && <LightPumpShort />}
       {activeTab === 'symbols' && <LightSymbols state={state} onRefresh={refresh} onGoSymbol={setSelectedSymbol} />}
       {activeTab === 'bot_cycles' && <BotCyclesView state={state} onRefresh={refresh} onGoSymbols={() => go('symbols')} />}
       {activeTab === 'all_positions' && <LightPositionLists key="all" view="all" state={state} onGoCycles={() => go('bot_cycles')} />}
