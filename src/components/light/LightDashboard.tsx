@@ -22,15 +22,15 @@ const fmt = (v: number | null | undefined, d = 2) => (typeof v === 'number' && N
 type Hedge = { buyNotionalUsdt: number; sellNotionalUsdt: number; buyTpPct: number; sellTpPct: number; sizingMode?: 'CUSTOM' | 'MINIMUM' };
 type Affected = { symbol: string; side: 'Buy' | 'Sell'; entry: number; price: number | null; movePct: number | null; newTpPct: number; tpPrice: number; managed: boolean };
 
-const Box: React.FC<{ legend: string; children: React.ReactNode; onSave?: () => void; saving?: boolean; status?: string | null; error?: string | null; unavailable?: boolean; testid?: string; className?: string }> = (p) => (
+const Box: React.FC<{ legend: string; children: React.ReactNode; onSave?: () => void; saving?: boolean; status?: string | null; error?: string | null; unavailable?: boolean; testid?: string; className?: string; inlineSave?: boolean }> = (p) => (
   <fieldset className={`tradebot-settings-box${p.className ? ' ' + p.className : ''}`} style={boxStyle} data-testid={p.testid}>
     <legend style={legendStyle}>{p.legend}</legend>
     {p.children}
     {p.unavailable && <div className="unavailable-note">Not available in this version</div>}
     {p.error && <div className="field-error" data-testid={p.testid ? `${p.testid}-error` : undefined}>{p.error}</div>}
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
+    {!p.inlineSave && <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
       <button className="save" type="button" disabled={p.unavailable || p.saving || !p.onSave} onClick={p.onSave}>{p.saving ? 'Saving…' : 'Save'}</button>
-    </div>
+    </div>}
     {p.status && <small className="saved-status" data-testid={p.testid ? `${p.testid}-status` : undefined}>{p.status}</small>}
   </fieldset>
 );
@@ -180,16 +180,16 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
 
   // Aged Positions defaults (display filter only, saved on the server)
   const savedAged = (state?.settings as any)?.agedPositions as { minHours: number; maxHours: number | null } | undefined;
-  const [aged, setAged] = useState<{ min: string; max: string } | null>(null);
-  useEffect(() => { if (savedAged && aged === null) setAged({ min: String(savedAged.minHours), max: savedAged.maxHours === null ? '' : String(savedAged.maxHours) }); }, [savedAged?.minHours, savedAged?.maxHours]);
+  const [aged, setAged] = useState<string | null>(null);
+  useEffect(() => { if (savedAged && aged === null) setAged(String(savedAged.minHours / 24)); }, [savedAged?.minHours, savedAged?.maxHours]);
   const saveAged = async () => {
-    if (!aged || aged.min === '' || !(Number(aged.min) >= 0)) return setBox('aged', { error: 'Enter a minimum age ≥ 0 hours' });
+    if (aged === null || aged.trim() === '' || !Number.isFinite(Number(aged)) || Number(aged) < 0) return setBox('aged', { error: 'Enter a valid minimum age in days' });
     setBox('aged', { saving: true });
-    const r = await postJson('/api/aged-settings', { minHours: Number(aged.min), maxHours: aged.max === '' ? null : Number(aged.max) });
+    const r = await postJson('/api/aged-settings', { minHours: Number(aged) * 24, maxHours: null });
     if (!r.ok) { setBox('aged', { error: r.data?.error || `HTTP ${r.status}` }); return; }
-    const a = r.data?.aged; if (a) setAged({ min: String(a.minHours), max: a.maxHours === null ? '' : String(a.maxHours) });
+    const a = r.data?.aged; if (a) setAged(String(a.minHours / 24));
     setBox('aged', { status: 'Saved on server' });
-    showToast(`Aged Positions defaults saved: ${a?.minHours} h minimum${a?.maxHours ? ', ' + a.maxHours + ' h maximum' : ''}`);
+    showToast(`Aged Positions: older than ${aged} days`);
   };
   const saveMargin = async () => {
     if (margin === null || !positive(margin)) return setBox('margin', { error: 'Enter a margin threshold > 0 USDT' });
@@ -240,24 +240,25 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const bs = (k: string) => boxState[k] || {};
   return (
     <div className="content" data-testid="terminal-dashboard">
-      <Box legend="Pump Short — New Strategy" testid="pump-short-settings" onSave={savePump} saving={pumpSaving} status={pumpStatus} error={pumpError}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 12 }}>
+      <Box legend="Pump Short — New Strategy" testid="pump-short-settings" onSave={savePump} saving={pumpSaving} status={pumpStatus} error={pumpError} inlineSave>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8 }}>
           <label style={labelStyle()}>Growth threshold (%)<input aria-label="Pump growth percent" type="number" min="0.1" step="0.1" value={pump.minGrowthPct} onChange={e => setPump(p => ({ ...p, minGrowthPct: e.target.value }))} /></label>
           <label style={labelStyle()}>Lookback (days)<input aria-label="Pump lookback days" type="number" min="1" max="365" step="1" value={pump.lookbackDays} onChange={e => setPump(p => ({ ...p, lookbackDays: e.target.value }))} /></label>
           <label style={labelStyle()}>Exit retracement (%)<input aria-label="Pump exit retracement percent" type="number" min="1" max="100" step="0.1" value={pump.retracementPct} onChange={e => setPump(p => ({ ...p, retracementPct: e.target.value }))} /></label>
           <label style={labelStyle()}>Position size (USDT)<input aria-label="Pump position size USDT" type="number" min="0.01" step="0.01" value={pump.positionNotionalUsdt} onChange={e => setPump(p => ({ ...p, positionNotionalUsdt: e.target.value }))} /></label>
           <label style={labelStyle()}>Max Pump Positions<input aria-label="Pump max positions" type="number" min="1" max="200" step="1" value={pump.maxPositions} onChange={e => setPump(p => ({ ...p, maxPositions: e.target.value }))} /></label>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 8 }}>
           <span style={{ fontSize: 12 }}>Pump Short: <strong className={pumpExecution?.armed ? 'green' : 'red'}>{pumpExecution?.armed ? 'ARMED' : 'DISARMED'}</strong></span>
           <button type="button" disabled={pumpArmBusy || (pumpExecution?.armed ? false : pumpExecution?.mode !== 'REAL')} onClick={() => void armPump(!pumpExecution?.armed)}>
             {pumpExecution?.armed ? 'Stop Pump Short Entries & Exits' : 'Enable REAL Pump Short'}
           </button>
           <button type="button" onClick={() => navigate('/PumpShort')}>View Pump Scanner</button>
           <button type="button" onClick={() => navigate('/PumpPositions')}>Pump Positions</button>
+          <span style={{ flex: 1 }} />
+          <button className="save" type="button" disabled={pumpSaving} onClick={savePump}>{pumpSaving ? 'Saving…' : 'Save'}</button>
         </div>
         {pumpArmError && <p role="alert" className="field-error">{pumpArmError}</p>}
-        <small style={{ opacity: 0.7 }}>Independent strategy. Execution requires REAL mode and explicit confirmation; older strategies are unchanged.</small>
       </Box>
       {hedgeLoading&&<p role="status">Loading strategy settings…</p>}
       {hedgeLoadError&&<p className="lp-error" role="alert">{hedgeLoadError} <button type="button" onClick={()=>void loadHedge()}>Retry</button></p>}
@@ -313,8 +314,7 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
           <label style={labelStyle()} title="Bybit position margin (positionIM) where reported, otherwise value ÷ leverage (labelled est.); all owners, strictly above">Margin Threshold (USDT)<input type="number" min="0.000001" step="any" aria-label="High Margin Threshold USDT" value={margin ?? ''} placeholder={savedMargin !== undefined ? '' : '—'} disabled={savedMargin === undefined} onChange={(e) => setMargin(e.target.value)} data-testid="margin-threshold" /></label>
         </Box>
         <Box legend="Aged Positions Settings" onSave={savedAged ? saveAged : undefined} {...bs('aged')} testid="box-aged">
-          <label style={labelStyle()} title="Default minimum age (hours) of the Aged Positions page and its sidebar count">Min Age (h)<input type="number" min="0" step="1" aria-label="Aged Positions Settings Min Age" value={aged?.min ?? ''} placeholder={savedAged ? '' : '—'} disabled={!savedAged} onChange={(e) => setAged({ min: e.target.value, max: aged?.max ?? '' })} data-testid="aged-min" /></label>
-          <label style={labelStyle()} title="Optional maximum age (hours); empty = no maximum">Max Age (h)<input type="number" min="0" step="1" aria-label="Aged Positions Settings Max Age" value={aged?.max ?? ''} placeholder={savedAged ? 'none' : '—'} disabled={!savedAged} onChange={(e) => setAged({ min: aged?.min ?? '', max: e.target.value })} data-testid="aged-max" /></label>
+          <label style={labelStyle()} title="Show positions continuously open longer than this number of days">Open longer than (days)<input type="number" min="0" step="0.5" aria-label="Aged Positions Settings Min Days" value={aged ?? ''} placeholder={savedAged ? '' : '—'} disabled={!savedAged} onChange={(e) => setAged(e.target.value)} data-testid="aged-min" /></label>
         </Box>
       </div>
 

@@ -993,7 +993,14 @@ export class TradingEngine {
           freezePct: existing?.freezePct || 1000,
           isFrozen: existing?.isFrozen || false,
           cycleId: existing?.cycleId || `bybit-${symbol}`,
-          cycleStartTime: existing?.cycleStartTime || (live.createdTime ? parseInt(live.createdTime) : Date.now()),
+          // A reused Bybit symbol/side ID must not inherit the first position's
+          // age after the side went flat and later reopened. Prefer the current
+          // exchange position's creation timestamp when it is newer than our
+          // cached first-seen time; after a confirmed missing interval use the
+          // new observed lifecycle rather than the stale local record.
+          cycleStartTime: existing?.missingOnExchangeSince ? Date.now()
+            : Math.max(existing?.cycleStartTime || 0,
+              Number(live.createdTime) > 0 && Number(live.createdTime) <= Date.now() ? Number(live.createdTime) : 0) || Date.now(),
           updatedAt: Date.now(),
           // display only (High Margin and position pages); the trading fields above are unchanged
           exchangeMargin: exchangeMarginOf(live.positionIM, this.connection.marginMode),

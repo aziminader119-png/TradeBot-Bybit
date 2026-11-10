@@ -153,8 +153,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
       <div className="lp-toolbar">
         <div className="tb-left">
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
-          {view === 'aged' && <label>Minimum age (hours): <input type="number" min="0" step="1" value={minHours} style={{ width: 80 }} onChange={(e) => { setMinHours(Math.max(0, Number(e.target.value) || 0)); setPage(1); }} /></label>}
-          {view === 'aged' && <label>Maximum age (hours): <input type="number" min="0" step="1" value={maxHours ?? ''} placeholder="none" style={{ width: 80 }} onChange={(e) => { setMaxHours(e.target.value === '' ? null : Math.max(0, Number(e.target.value))); setPage(1); }} /></label>}
+          {view === 'aged' && <label>Open longer than (days): <input type="number" min="0" step="0.5" value={minHours / 24} style={{ width: 80 }} onChange={(e) => { setMinHours(Math.max(0, Number(e.target.value) || 0) * 24); setMaxHours(null); setPage(1); }} /></label>}
         </div>
         <RowsPicker size={size} onSize={reset(setSize)} />
         {view !== 'external' && view !== 'mart' && <FilterChoices<OwnerF> label="Owner" testId="owner-filter" optionAttribute="data-owner" value={ownerF} options={[{value:'ALL',label:'All Owners'},{value:'bot',label:'BOT'},{value:'external',label:'External'}]} onChange={reset(setOwnerF)}/>}
