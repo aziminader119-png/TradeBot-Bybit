@@ -9,6 +9,7 @@ import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
 import { syncedPositions } from './LightShell.tsx';
 import { Pager, RowsPicker, SortTh, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
+import { PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
 
 // Read-only lists. No trading or ownership mutations; data comes from the existing synced snapshot.
 type SideF = 'ALL' | 'Buy' | 'Sell';
@@ -66,6 +67,8 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
   const [page, setPage] = useState(1);
   const [sort, toggleSort] = useSort<K>();
   const [now, setNow] = useState(Date.now());
+  const pumpOwnership = usePumpOwnership();
+  const pumpBySymbol = new Map(pumpOwnership.trades.filter(t => ['OPEN', 'ENTRY_PENDING', 'EXIT_PENDING'].includes(t.status)).map(t => [t.symbol, t]));
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
 
   const conn: any = (state as any)?.connection;
@@ -194,11 +197,11 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
                   <td className={tone(p.unrealizedPnl)} data-col="upnl">{typeof p.unrealizedPnl === 'number' ? `${p.unrealizedPnl > 0 ? '+' : ''}${p.unrealizedPnl.toFixed(4)}` : '—'}</td>
                   <td data-col="open"><DateTime ts={opened} /></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
-                  <td>{p.owner === 'bot' ? 'BOT' : 'External'}</td>
+                  <td>{p.side === 'Sell' && pumpBySymbol.has(p.symbol) ? 'PUMP' : p.owner === 'bot' ? 'BOT' : 'External'}</td>
                   <td className={st.cls} data-col="status">{st.text}</td>
                   <td data-col="tp">{tp ? <>{price(tp.price)} <small className="tp-pct">{tp.pct > 0 ? tp.pct + '%' : 'Bybit'}</small></> : '—'}</td>
                   {risk ? <td className={view === 'margin' ? '' : tone(movePct(p))} data-col="risk">{view === 'margin' ? <MarginCell p={p} /> : num(movePct(p), 2) + '%'}</td> : <td className="na">—</td>}
-                  <td>{p.owner === 'bot' ? <button type="button" className="row-act" onClick={onGoCycles} title="Open the Bot Cycles page (resume / resolve cycles)">Cycle</button> : '—'}</td>
+                  <td><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} pump={p.side === 'Sell' ? pumpBySymbol.get(p.symbol) : undefined} refresh={pumpOwnership.refresh} />{p.owner === 'bot' && <button type="button" className="row-act" onClick={onGoCycles}>Cycle</button>}</td>
                 </tr>
               ))}
           </tbody>

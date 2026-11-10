@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { ReportSummary, ReportTable, type ReportColumn, type ReportRow } from './reports.tsx';
+import { postJson } from './Modal.tsx';
 
 type PumpTrade = { id: string; symbol: string; status: string; entryPrice: number; exitPrice: number | null;
   target: number; waveLow: number; waveHigh: number; qty: number; entryAt: number; exitAt: number | null; note: string | null;
@@ -27,6 +28,7 @@ function asRow(t: PumpTrade): ReportRow {
 export function LightPumpPositions() {
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
     const refresh = async () => {
@@ -41,8 +43,24 @@ export function LightPumpPositions() {
     return () => { alive = false; clearInterval(timer); };
   }, []);
   const rows = useMemo(() => (data?.trades || []).map(asRow), [data?.trades]);
-  const open = rows.filter(r => !String(r.status).startsWith('CLOSED'));
-  const closed = rows.filter(r => String(r.status).startsWith('CLOSED'));
+  const open = rows.filter(r => !['CLOSED', 'RELEASED'].some(s => String(r.status).startsWith(s)));
+  const closed = rows.filter(r => ['CLOSED', 'RELEASED'].some(s => String(r.status).startsWith(s)));
+  const change = async (r: ReportRow, restore: boolean) => {
+    const label = restore ? 'Return to Pump management' : 'Remove from Pump management';
+    if (!window.confirm(`${label}: ${r.symbol}?\nNo exchange order will be sent. The Bybit SHORT remains open.`)) return;
+    setBusyId(r.id); setError(null);
+    try {
+      const result = await postJson(restore ? '/api/pump-short/positions/adopt' : `/api/pump-short/positions/${r.id}/release`,
+        restore ? { symbol: r.symbol, confirm: true } : { confirm: true });
+      if (!result.ok) throw Error(result.data?.error || 'Transfer failed');
+      setData(result.data);
+    } catch (e: any) { setError(e.message); }
+    finally { setBusyId(null); }
+  };
+  const actions = (r: ReportRow) => String(r.status).startsWith('OPEN')
+    ? <button className="row-act" disabled={busyId !== null} onClick={() => void change(r, false)}>Remove Pump</button>
+    : String(r.status).startsWith('RELEASED')
+      ? <button className="row-act" disabled={busyId !== null} onClick={() => void change(r, true)}>Add Pump</button> : '—';
   const totalPnl = rows.reduce((sum, row) => sum + (typeof row.pnl === 'number' ? row.pnl : 0), 0);
   return <div className="workspace pump-positions-page" data-testid="pump-positions-page">
     {(error || data?.error) && <p role="alert" className="lp-error">{error || data?.error}</p>}
@@ -54,7 +72,7 @@ export function LightPumpPositions() {
         ['Total P&L (USDT)', totalPnl.toFixed(4)],
       ]} />
     </section>
-    <section className="lp-panel pump-positions-table"><ReportTable title="Open & Pending Pump Positions" rows={open} columns={columns} empty="No open Pump Short positions." /></section>
-    <section className="lp-panel pump-positions-table"><ReportTable title="Closed Pump Positions" rows={closed} columns={columns} empty="No closed Pump Short positions." /></section>
+    <section className="lp-panel pump-positions-table"><ReportTable title="Open & Pending Pump Positions" rows={open} columns={columns} renderActions={actions} empty="No open Pump Short positions." /></section>
+    <section className="lp-panel pump-positions-table"><ReportTable title="Closed / Released Pump Positions" rows={closed} columns={columns} renderActions={actions} empty="No closed or released Pump Short positions." /></section>
   </div>;
 }

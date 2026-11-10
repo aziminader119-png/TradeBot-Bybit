@@ -5,6 +5,7 @@ import { syncedPositions } from './LightShell.tsx';
 import { Pager, RowsPicker, SortTh, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
 import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
+import { PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
 
 // BOT Positions page of the approved light design. Rows = real Bybit positions from the last successful sync that
 // the backend marks as bot-owned (owner === 'bot'); nothing else is shown. Everything comes from the WebSocket
@@ -41,6 +42,7 @@ function botTp(p: BotPosition, c: StrategyCycle | undefined, cfg: StrategyConfig
 }
 
 export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCycles: () => void }> = ({ state, onGoCycles }) => {
+  const pumpOwnership = usePumpOwnership();
   const [q, setQ] = useState('');
   const [sideF, setSideF] = useState<SideF>('ALL');
   const [size, setSize] = useState(20);
@@ -166,7 +168,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
                   <td className={st.cls} data-col="status">{st.text}</td>
                   <td data-col="tp">{tp ? <>{price(tp.price)} <small className="tp-pct">{tp.pct}%</small></> : '—'}</td>
                   <td className="na">—</td>
-                  <td><button type="button" className="row-act" onClick={onGoCycles} title="Open the Bot Cycles page (resume / resolve cycles)">Cycle</button></td>
+                  <td><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} refresh={pumpOwnership.refresh} /><button type="button" className="row-act" onClick={onGoCycles}>Cycle</button></td>
                 </tr>
               ))}
           </tbody>

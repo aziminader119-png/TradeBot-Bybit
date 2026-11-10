@@ -86,6 +86,16 @@ apiRouter.post('/pump-short/scan', (_req: Request, res: Response) => {
   res.json({ success: true, ...pumpScanner.snapshot() });
 });
 apiRouter.get('/pump-short/positions', (_req: Request, res: Response) => res.json(pumpTrader.snapshot()));
+apiRouter.post('/pump-short/positions/:id/release', (req: Request, res: Response) => {
+  if (req.body?.confirm !== true) return res.status(400).json({ success: false, error: 'Confirmation required' });
+  try { return res.json({ success: true, ...pumpTrader.release(req.params.id) }); }
+  catch (e: any) { return res.status(409).json({ success: false, error: e.message }); }
+});
+apiRouter.post('/pump-short/positions/adopt', async (req: Request, res: Response) => {
+  if (req.body?.confirm !== true) return res.status(400).json({ success: false, error: 'Confirmation required' });
+  try { return res.json({ success: true, ...await pumpTrader.adopt(String(req.body?.symbol || '').toUpperCase()) }); }
+  catch (e: any) { return res.status(409).json({ success: false, error: e.message }); }
+});
 apiRouter.post('/pump-short/arm', (req: Request, res: Response) => {
   // This strategy uses the authenticated dashboard session and an explicit confirmation.
   // The Security PIN remains required on the other protected routes.
@@ -423,6 +433,9 @@ apiRouter.post('/positions/:id/transfer', async (req: Request, res: Response) =>
   if (refuseRealTransferWhenReadOnly(res, [req.params.id])) return;
   const { targetOwner } = req.body || {};
   if (targetOwner !== 'bot' && targetOwner !== 'external') return fail(res, new Error('targetOwner must be bot or external'));
+  const position = db.getPosition(req.params.id);
+  if (targetOwner === 'bot' && position?.side === 'Sell' && pumpTrader.snapshot().trades.some(t => t.symbol === position.symbol && !['CLOSED', 'RELEASED'].includes(t.status)))
+    return res.status(409).json({ success: false, error: 'This SHORT has a Pump Short record. Release it from Pump (or resolve REVIEW) before adding to BOT.' });
   try {
     const r = await engine.strategy.transfer(req.params.id, targetOwner);
     wsServer.broadcastSnapshot();
@@ -436,7 +449,12 @@ apiRouter.post('/positions/transfer-bulk', async (req: Request, res: Response) =
   if (refuseRealTransferWhenReadOnly(res, positionIds.map(String))) return;
   const results: { id: string; ok: boolean; message: string }[] = [];
   for (const id of positionIds) {
-    try { results.push({ id, ...(await engine.strategy.transfer(String(id), targetOwner)) }); }
+    try {
+      const position = db.getPosition(String(id));
+      if (targetOwner === 'bot' && position?.side === 'Sell' && pumpTrader.snapshot().trades.some(t => t.symbol === position.symbol && !['CLOSED', 'RELEASED'].includes(t.status)))
+        throw Error('Release this SHORT from Pump Short (or resolve REVIEW) before adding to BOT');
+      results.push({ id, ...(await engine.strategy.transfer(String(id), targetOwner)) });
+    }
     catch (err: any) { results.push({ id, ok: false, message: err.message }); }
   }
   wsServer.broadcastSnapshot();

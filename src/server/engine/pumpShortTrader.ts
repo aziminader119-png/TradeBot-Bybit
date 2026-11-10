@@ -6,7 +6,7 @@ import type { TradingEngine } from './tradingEngine.ts';
 import type { PumpShortScanner, PumpCandidate } from './pumpShortScanner.ts';
 import { pumpShortEntryTarget } from './pumpShort.ts';
 
-export type PumpTradeStatus = 'ENTRY_PENDING' | 'OPEN' | 'EXIT_PENDING' | 'CLOSED' | 'REVIEW';
+export type PumpTradeStatus = 'ENTRY_PENDING' | 'OPEN' | 'EXIT_PENDING' | 'CLOSED' | 'REVIEW' | 'RELEASED';
 export type PumpTrade = {
   id: string; symbol: string; status: PumpTradeStatus; entryPrice: number; exitPrice: number | null;
   target: number; waveLow: number; waveHigh: number; qty: number; entryAt: number; exitAt: number | null;
@@ -67,6 +67,55 @@ export class PumpShortTrader {
   }
   public disarm() { this.armed = false; this.db.addLog('SECURITY', 'Pump Short DISARMED', 'Pump Short execution stopped'); }
 
+  /** Change strategy ownership only. Never sends a Bybit order. */
+  public release(id: string) {
+    if (this.busy) throw Error('Pump Short is reconciling positions; retry shortly');
+    const trade = this.trades.find(t => t.id === id);
+    if (!trade || trade.status !== 'OPEN') throw Error('Only confirmed OPEN Pump Short positions can be released');
+    trade.status = 'RELEASED';
+    trade.note = 'Released from Pump Short management; Bybit position remains open';
+    this.save();
+    this.db.addLog('SECURITY', 'Pump Short ownership released', 'No exchange order sent; automatic Pump exit disabled', trade.symbol);
+    return this.snapshot();
+  }
+
+  public async adopt(symbol: string) {
+    if (this.busy) throw Error('Pump Short is reconciling positions; retry shortly');
+    if (!/^[A-Z0-9]+USDT$/.test(symbol)) throw Error('Invalid USDT perpetual symbol');
+    this.busy = true;
+    try {
+      const live = (await this.engine.getClient().getPositions(symbol)).filter(p => p.side === 'Sell' && Number(p.size) > 0);
+      if (live.length !== 1) throw Error('Exactly one open Bybit SHORT is required; no new order will be opened');
+      const p = live[0];
+      if (this.db.getPositions().some(x => x.symbol === symbol && x.side === 'Sell' && x.owner === 'bot' && x.size > 0))
+        throw Error('This SHORT is already managed by the main BOT. Remove it from BOT first.');
+      if (this.trades.some(t => t.symbol === symbol && !['CLOSED', 'RELEASED'].includes(t.status)))
+        throw Error('This symbol has an active, pending, or REVIEW Pump Short record; resolve it before adoption');
+      const wave = this.scanner.snapshot().candidates.find(c => c.symbol === symbol);
+      if (!wave || !(Number(p.avgPrice) > wave.low))
+        throw Error('Pump scanner has no valid wave low for this SHORT. Refresh the scanner before adopting; no target was guessed.');
+      const old = [...this.trades].reverse().find(t => t.symbol === symbol && t.status === 'RELEASED');
+      const settings = this.db.getSettings().pumpShort;
+      if (!settings) throw Error('Pump Short settings unavailable');
+      const entryPrice = Number(p.avgPrice);
+      const qty = Number(p.size);
+      const target = pumpShortEntryTarget(entryPrice, wave.low, settings.retracementPct);
+      if (!Number.isFinite(target) || !(target > 0 && target < entryPrice)) throw Error('Invalid Pump Short target');
+      if (old) {
+        Object.assign(old, { status: 'OPEN', entryPrice, qty, target, waveLow: wave.low, waveHigh: wave.high,
+          exitPrice: null, exitAt: null, exitLinkId: null, note: 'Re-adopted after checking the live Bybit SHORT' });
+      } else {
+        this.trades.push({ id: crypto.randomUUID(), symbol, status: 'OPEN', entryPrice, exitPrice: null,
+          target, waveLow: wave.low, waveHigh: wave.high, qty, entryAt: Date.now(), exitAt: null,
+          entryLinkId: `ps-adopt-${crypto.randomUUID().slice(0, 8)}`, exitLinkId: null,
+          note: 'Adopted existing Bybit SHORT; no entry order sent' });
+      }
+      this.save();
+      this.db.addLog('SECURITY', 'Pump Short ownership adopted', `Existing SHORT qty=${qty}; entry=${entryPrice}; waveLow=${wave.low}; target=${target}; no order sent`, symbol);
+      return this.snapshot();
+    } finally { this.busy = false; }
+  }
+
   public start() {
     if (this.timer) return;
     this.timer = setInterval(() => void this.tick(), 15_000);
@@ -90,7 +139,7 @@ export class PumpShortTrader {
       } catch { /* Missing marks must not block reconciliations. */ }
       // Reconcile tracked positions even while entry is disarmed. Exit orders require REAL.
       for (const trade of this.trades) {
-        if (trade.status === 'CLOSED' || trade.status === 'REVIEW') continue;
+        if (trade.status === 'CLOSED' || trade.status === 'REVIEW' || trade.status === 'RELEASED') continue;
         const live = positions.find(p => p.symbol === trade.symbol && p.side === 'Sell' && Number(p.size) > 0);
         if (trade.status === 'ENTRY_PENDING') {
           if (live) {
@@ -147,12 +196,12 @@ export class PumpShortTrader {
         return;
       }
       // One new order per pass, and no more than ten owned open/pending shorts overall.
-      const occupied = this.trades.filter(t => t.status !== 'CLOSED').length;
+      const occupied = this.trades.filter(t => t.status !== 'CLOSED' && t.status !== 'RELEASED').length;
       const maxPositions = this.db.getSettings().pumpShort?.maxPositions ?? 10;
       if (occupied >= maxPositions) { this.explain('Position limit', `${occupied}/${maxPositions} Pump Short positions or unresolved records; no new orders until slots are available.`); return; }
       const existing = new Set(positions.filter(p => p.side === 'Sell' && Number(p.size) > 0).map(p => String(p.symbol)));
       const candidate = scan.candidates.find(c => !c.excludedShort && !existing.has(c.symbol) &&
-        !this.trades.some(t => t.symbol === c.symbol && t.status !== 'CLOSED'));
+        !this.trades.some(t => t.symbol === c.symbol && !['CLOSED', 'RELEASED'].includes(t.status)));
       if (!candidate) { this.explain('No available candidate', `${scan.candidates.length} pump candidates; all excluded due to existing SHORT or Pump Short records.`); return; }
       await this.open(candidate);
     } catch (e: any) { this.lastError = e.message || String(e); this.explain('Trading error', this.lastError || 'Unknown error'); }
