@@ -14,6 +14,7 @@ export interface PumpCandidate {
 
 /** Explicit, read-only scan. No orders and no changes to existing cycles. */
 export class PumpShortScanner {
+  private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
   private checked = 0;
   private total = 0;
@@ -22,6 +23,14 @@ export class PumpShortScanner {
   private candidates: PumpCandidate[] = [];
 
   constructor(private client: BybitClient, private db: BotDatabase) {}
+
+  /** Scan continuously, independently of the legacy hedge strategy. */
+  public start(): void {
+    if (this.timer) return;
+    void this.scan();
+    this.timer = setInterval(() => void this.scan(), 5 * 60_000);
+    this.timer.unref?.();
+  }
 
   public snapshot() {
     return { running: this.running, checked: this.checked, total: this.total,
@@ -48,7 +57,10 @@ export class PumpShortScanner {
         while (next < symbols.length) {
           const symbol = symbols[next++];
           try {
-            const candles = await this.client.getKlines(symbol, 'D', Math.min(365, settings.lookbackDays + 2));
+            // Hourly candles cover every duration from one hour up to the configured days.
+            // Bybit limits kline requests to 1000 rows: use daily candles only for longer windows.
+            const hourly = settings.lookbackDays <= 40;
+            const candles = await this.client.getKlines(symbol, hourly ? '60' : 'D', hourly ? settings.lookbackDays * 24 + 2 : settings.lookbackDays + 2);
             const wave = findPumpWave(candles, Date.now(), settings);
             const lastPrice = tickers[symbol]?.lastPrice || 0;
             if (wave && isPumpShortEntryEligible(wave, lastPrice)) {
