@@ -5,8 +5,9 @@ import {useRead} from './reports.tsx';
 import {TRADES_URL} from './listCounts.ts';
 import {FilterChoices} from './FilterChoices.tsx';
 import {DateTime} from './format.tsx';
-import {PnlMode,pnlCloseRecords,pnlStats,dailyPnl,utcKey,valueOf,topSymbols,fundingTotal,type FillIntent} from './pnlMath.ts';
+import {PnlMode,pnlCloseRecords,pnlStats,dailyPnl,utcKey,valueOf,topSymbols,topLosingCloses,fundingTotal,type FillIntent} from './pnlMath.ts';
 import {syncedPositions} from './LightShell.tsx';
+import {LightReports} from './LightReports.tsx';
 const PNL_URL=TRADES_URL+'?withIntents=1';
 const money=(v:number|null)=>v===null||!Number.isFinite(v)?'—':(v<0?'−':v>0?'+':'')+'$'+Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const color=(v:number|null)=>v===null?'':v>0?'green':v<0?'red':'';
@@ -63,13 +64,13 @@ export const LightPnlAnalytics:React.FC<{state:BotStateSummary|null}>=({state})=
  const comparison=dailyPnl(rows.filter(r=>compareSide==='ALL'||r.side===compareSide),mode);let b=0,s=0;
  const compare=comparison.map(d=>({...d,buy:b+=d.buy,sell:s+=d.sell,value:b+s}));
  const sideOptions=[{value:'ALL',label:'All'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}];
- const topRows=(filter:string,profitable:boolean)=>topSymbols(rows.filter(r=>filter==='ALL'||r.side===filter),mode,profitable);
+ const topRows=(filter:string,profitable:boolean)=>profitable?topSymbols(rows.filter(r=>filter==='ALL'||r.side===filter),mode,true):topLosingCloses(rows.filter(r=>filter==='ALL'||r.side===filter),mode);
  const top=(profitable:boolean)=>{const id=profitable?'profit':'loss',selection=topSort[id],original=topRows(profitable?profitSide:lossSide,profitable);
   const sorted=selection?[...original].sort((a,b)=>{const x=a[selection.key],y=b[selection.key];const result=typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y));return selection.desc?-result:result;}):original;
   const sortBy=(key:'symbol'|'side'|'count'|'value')=>setTopSort(current=>({...current,[id]:{key,desc:current[id]?.key===key?!current[id].desc:key==='count'||key==='value'}}));
-  return <section className="panel"><h3>Top 10 <span className={profitable?'green':'red'}>{profitable?'PROFITABLE':'LOSING'}</span> Symbols</h3>
+  return <section className="panel"><h3>Top 10 <span className={profitable?'green':'red'}>{profitable?'PROFITABLE':'LOSING'}</span> Symbols</h3>{!profitable&&<p className="pnl-loss-explanation">Ranked by losses from individual closed trades, even when a symbol is profitable overall. Fees without verification are excluded in Net mode.</p>}
   <div className="pnl-panel-filters"><FilterChoices<string> label="" value={profitable?profitSide:lossSide} options={sideOptions} onChange={profitable?setProfitSide:setLossSide}/></div>
-  <table><thead><tr>{([['symbol','Symbol'],['side','Side'],['count','Closed Trades'],['value','Realized P&L']] as const).map(([key,label])=><th key={key} className="sort" role="button" tabIndex={0} aria-sort={selection?.key===key?(selection.desc?'descending':'ascending'):'none'} onClick={()=>sortBy(key)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sortBy(key);}}}>{label} <span aria-hidden="true">{selection?.key===key?(selection.desc?'↓':'↑'):'↕'}</span></th>)}</tr></thead><tbody>{available&&sorted.length?sorted.map(g=><tr key={g.symbol+g.side} title={g.partial?g.covered+' of '+g.count+' closes have verified fees':undefined}><td><SymbolLink symbol={g.symbol} title={g.symbol} className="symbol-nav-link"><strong>{g.symbol.replace(/USDT$/,'')}</strong></SymbolLink></td><td className={g.side==='Buy'?'pos-buy':'pos-short'}>{g.side==='Buy'?'BUY':'SHORT'}</td><td>{g.count}</td><td className={color(g.value)}>{money(g.value)}{g.partial?' *':''}</td></tr>):<tr><td colSpan={4} className="pnl-table-empty">{available?'No matching closed trades.':'—'}</td></tr>}</tbody></table>
+  <table><thead><tr>{([['symbol','Symbol'],['side','Side'],['count','Closed Trades'],['value',profitable?'Realized P&L':'Loss on losing closes']] as const).map(([key,label])=><th key={key} className="sort" role="button" tabIndex={0} aria-sort={selection?.key===key?(selection.desc?'descending':'ascending'):'none'} onClick={()=>sortBy(key)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sortBy(key);}}}>{label} <span aria-hidden="true">{selection?.key===key?(selection.desc?'↓':'↑'):'↕'}</span></th>)}</tr></thead><tbody>{available&&sorted.length?sorted.map(g=><tr key={g.symbol+g.side} title={g.partial?'Some closes have unverified fees and are excluded from Net':'Recorded closed trades'}><td><SymbolLink symbol={g.symbol} title={g.symbol} className="symbol-nav-link"><strong>{g.symbol.replace(/USDT$/,'')}</strong></SymbolLink></td><td className={g.side==='Buy'?'pos-buy':'pos-short'}>{g.side==='Buy'?'BUY':'SHORT'}</td><td>{g.count}</td><td className={color(g.value)}>{money(g.value)}{g.partial?' *':''}</td></tr>):<tr><td colSpan={4} className="pnl-table-empty">{available?(mode==='NET'?'No verifiable losing closes in this selection. Try Gross to include closes with missing fees.':'No losing closed trades in this selection.'):'—'}</td></tr>}</tbody></table>
  </section>};
  const reasonGroups=new Map<string,{count:number;value:number;known:boolean}>();
  for(const r of rows){const g=reasonGroups.get(r.reason)||{count:0,value:0,known:true};g.count++;const v=valueOf(r,mode);if(v===null)g.known=false;else g.value+=v;reasonGroups.set(r.reason,g);}
@@ -111,6 +112,7 @@ export const LightPnlAnalytics:React.FC<{state:BotStateSummary|null}>=({state})=
    <section className="panel"><h3>Trading Activity</h3><div className="metrics2"><Metric label="Average Duration" value={available&&duration!==null?n(duration,1)+' min':'—'}/><Metric label="Trades Per Day" title="Average over the selected recorded span, with a minimum of one day." value={available&&daySpan?n(rows.length/daySpan,2):'—'}/><Metric label="Most Active Symbol" value={available&&mostActive!=='—'?<SymbolLink symbol={mostActive} className="symbol-nav-link">{mostActive}</SymbolLink>:'—'}/><Metric label="First Closed Trade" value={<DateTime ts={available?rows[0]?.time:null} utc/>}/><Metric label="Last Closed Trade" value={<DateTime ts={available?rows[rows.length-1]?.time:null} utc/>}/><Metric label="Ledger Records" value={available?rows.length:'—'}/></div></section>
    <section className="panel wide"><h3>Closed Trades By Day</h3>{chart(daily,'count')}</section>
   </div>
+  <div className="pnl-merged-statistics"><h3>Statistics by Action</h3><LightReports state={state} view="statistics" /></div>
   <p className="pnl-source">Real bot ledger · closed trades only · UTC · Daily / Weekly / Monthly: trailing 24h / 7d / 30d. Net includes matched entry and exit fees; funding is not included. All Time covers available saved records, not the entire exchange account history.{available&&mode==='NET'&&!stats.complete?' Fee coverage: '+stats.covered+'/'+stats.count+' closes; Net figures marked partial cover only those. Entries marked * include closes without verified fees.':''}</p>
  </div>;
 };
