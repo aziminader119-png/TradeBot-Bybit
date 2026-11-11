@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { navigate } from './navigation.ts';
 import { FilterChoices } from './FilterChoices.tsx';
 import { Pager, RowsPicker, SortTh, price, sortRows, usePaged, useSort } from './table.tsx';
+import { ManualOrderDialog } from './ManualOrderDialog.tsx';
+import type { BotStateSummary } from '../../types/trading.ts';
 
 type Candidate = { symbol: string; low: number; high: number; growthPct: number; retracementTarget: number; lastPrice: number; excludedShort: boolean };
 type Scan = { running: boolean; checked: number; total: number; error: string | null; lastCompletedAt: number | null; candidates: Candidate[] };
 type Filter = 'ALL' | 'ELIGIBLE' | 'EXCLUDED';
 type SortKey = 'symbol' | 'growthPct' | 'low' | 'high' | 'lastPrice' | 'retracementTarget' | 'status';
 
-export function LightPumpShort() {
+export function LightPumpShort({ state }: { state: BotStateSummary | null }) {
+  const [manualShort, setManualShort] = useState<string | null>(null);
   const [scan, setScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [owned, setOwned] = useState(0);
@@ -67,7 +70,7 @@ export function LightPumpShort() {
       <div className="aged-table-title"><span>Pump Candidates</span></div>
       <div className="table-wrap" role="region" tabIndex={0} aria-label="Pump candidates table">
         <table className="lp-table" data-testid="pump-candidates-table">
-          <colgroup>{[18, 12, 14, 14, 14, 14, 14].map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
+          <colgroup>{[16, 11, 12, 12, 12, 12, 13, 12].map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
           <thead><tr>
             <SortTh k="symbol" s={sort} onSort={toggleSort}>Symbol</SortTh>
             <SortTh k="growthPct" s={sort} onSort={toggleSort}>Growth</SortTh>
@@ -76,16 +79,19 @@ export function LightPumpShort() {
             <SortTh k="lastPrice" s={sort} onSort={toggleSort}>Last Price</SortTh>
             <SortTh k="retracementTarget" s={sort} onSort={toggleSort}>Exit Target</SortTh>
             <SortTh k="status" s={sort} onSort={toggleSort}>Status</SortTh>
+            <th>Trade</th>
           </tr></thead>
           <tbody>{pg.slice.length ? pg.slice.map(c => <tr key={c.symbol}>
             <td className="symbol"><a href={`https://www.bybit.com/trade/usdt/${c.symbol}`} target="_blank" rel="noopener noreferrer" style={{ color: '#fafafa', fontWeight: 700 }}>{c.symbol}</a></td>
             <td><span className="green" style={{ fontWeight: 700 }}>+{c.growthPct.toFixed(2)}%</span></td>
             <td>{price(c.low)}</td><td>{price(c.high)}</td><td>{price(c.lastPrice)}</td><td>{price(c.retracementTarget)}</td>
             <td><span className={c.excludedShort ? 'red' : 'green'} style={{ fontWeight: 700 }}>{c.excludedShort ? 'SHORT OPEN' : 'ELIGIBLE'}</span></td>
-          </tr>) : <tr><td className="empty" colSpan={7}>No candidates match the filters.</td></tr>}</tbody>
+            <td><button type="button" className="row-act" disabled={c.excludedShort} title={c.excludedShort ? 'This symbol already has an open SHORT' : 'Open an external SHORT with explicit Bybit confirmation'} onClick={() => setManualShort(c.symbol)}>Manual Short</button></td>
+          </tr>) : <tr><td className="empty" colSpan={8}>No candidates match the filters.</td></tr>}</tbody>
         </table>
       </div>
       <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} />
     </section>
+    {manualShort && <ManualOrderDialog key={manualShort} symbol={manualShort} side="Sell" enabled={state?.systemMetrics?.tradingMode === 'REAL' && state?.systemMetrics?.tradingState === 'RUNNING'} onClose={() => setManualShort(null)} onDone={() => void refresh()} />}
   </div>;
 }

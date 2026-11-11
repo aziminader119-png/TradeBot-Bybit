@@ -5,7 +5,7 @@ import {SymbolStatistics} from '../futures/SymbolStatistics.tsx';
 const FuturesChart=lazy(()=>import('../futures/FuturesChart.tsx'));
 import {useFuturesBook} from '../futures/futuresStream.ts';
 import {LightPositionLists} from './LightPositionLists.tsx';
-import {LightModal,postJson} from './Modal.tsx';
+import {ManualOrderDialog} from './ManualOrderDialog.tsx';
 import {DateTime} from './format.tsx';
 import {price,num,signedPct} from './table.tsx';
 import {useRead} from './reports.tsx';
@@ -16,11 +16,9 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
  const contract=useRead<{instrument:any}>('/api/futures/instrument/'+encodeURIComponent(symbol)+'?environment='+encodeURIComponent(state?.settings?.environment||'mainnet')+'&entity='+encodeURIComponent(state?.settings?.apiHost||'api.bybit.com'),300000);
  const protections=useRead<{symbol:string;checkedAt:number;positions:ExchangeChartPosition[]}>('/api/futures/positions/'+encodeURIComponent(symbol)+'?environment='+encodeURIComponent(state?.settings?.environment||'mainnet')+'&entity='+encodeURIComponent(state?.settings?.apiHost||'api.bybit.com'),10000);
  const book=useFuturesBook(symbol),info=contract.data?.instrument,ticker=book.ticker;
- const [value,setValue]=useState('50'),[quote,setQuote]=useState<any>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[result,setResult]=useState(''),[chartError,setChartError]=useState(''),[submitted,setSubmitted]=useState(false),[now,setNow]=useState(Date.now());
+ const [value,setValue]=useState('50'),[orderSide,setOrderSide]=useState<'Buy'|'Sell'|null>(null),[chartError,setChartError]=useState(''),[now,setNow]=useState(Date.now());
  const [bookMode,setBookMode]=useState<'stacked'|'split'|'buy'|'sell'>('stacked');
  const [summaryTarget,setSummaryTarget]=useState<HTMLDivElement|null>(null);
- const requestId=useRef(''),alive=useRef(true);
- useEffect(()=>{alive.current=true;return()=>{alive.current=false;};},[]);
  useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),1000);const onError=(e:any)=>{if(e.detail?.symbol===symbol)setChartError(e.detail.message);};const onOK=(e:any)=>{if(e.detail?.symbol===symbol)setChartError('');};window.addEventListener('ft-chart-ok',onOK);window.addEventListener('ft-chart-error',onError);return()=>{clearInterval(id);window.removeEventListener('ft-chart-ok',onOK);window.removeEventListener('ft-chart-error',onError);};},[symbol]);
  const connected=state?.connection?.state==='CONNECTED',real=state?.systemMetrics?.tradingMode==='REAL'&&state?.systemMetrics?.tradingState==='RUNNING';
  const last=ticker?.lastPrice,lev=info?.maxLeverage,initial=Number(value)>0&&lev?Number(value)/lev:null;
@@ -31,18 +29,6 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
  const asks=book.synchronized?book.asks.slice(0,bookMode==='stacked'?12:24).reverse():[],bids=book.synchronized?book.bids.slice(0,bookMode==='stacked'?12:24):[];
  const spread=book.synchronized&&book.asks.length&&book.bids.length?book.asks[0].price-book.bids[0].price:null;
  const maxDepth=Math.max(1,...book.asks.slice(0,24).map(l=>l.total),...book.bids.slice(0,24).map(l=>l.total));
- const preview=async(side:'Buy'|'Sell')=>{
-  setError('');setResult('');setBusy(true);setSubmitted(false);
-  try{const v=Number(value);if(!Number.isFinite(v)||v<=0)throw Error('Enter a positive Position Value in USDT');const response=await fetch('/api/futures/preview/'+encodeURIComponent(symbol)+'?'+new URLSearchParams({side,value:String(v)}));const d=await response.json();if(!response.ok||d.error)throw Error(d.error||'Preview unavailable');if(alive.current){requestId.current=crypto.randomUUID();setQuote(d);}}
-  catch(e:any){if(alive.current)setError(e.message||'Preview failed');}finally{if(alive.current)setBusy(false);}
- };
- const confirm=async()=>{
-  if(!quote||submitted)return;setBusy(true);setSubmitted(true);setError('');
-  try{const r=await postJson('/api/futures/order',{symbol,side:quote.side,value:quote.notionalUsdt,requestId:requestId.current,confirm:true});if(!alive.current)return;
-   if(!r.ok){setError(r.data?.error||'Order result is uncertain. Check Trade History; this request will not be resent.');return;}
-   const i=r.data?.intent;setResult('Filled '+(quote.side==='Buy'?'BUY':'SHORT')+' · '+(i?.filledQty??'—')+' @ '+price(i?.avgPrice)+' · External');onRefresh();
-  }catch(e:any){if(alive.current)setError('Order result unknown. Check Trade History before a new request.');}finally{if(alive.current)setBusy(false);}
- };
  const fundingAt=ticker?.nextFundingTime,remaining=fundingAt?Math.max(0,Math.floor((fundingAt-now)/1000)):null;
  const fundingClock=remaining===null?'—':[Math.floor(remaining/3600),Math.floor(remaining/60)%60,remaining%60].map(n=>String(n).padStart(2,'0')).join(':');
  const overlays=positionLines(symbol,state,protections.data?.symbol===symbol&&Date.now()-protections.data.checkedAt<30000?protections.data.positions:null,ticker?.markPrice);
@@ -56,12 +42,11 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
 
   <div className="ft-terminal-grid">
    <section className="ft-chart-shell">{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><FuturesChart pair={{symbol}} frame="futures" livePrice={last||null} book={book} positionLines={overlays}/></Suspense></section>
-   <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)} disabled={busy}/>
+   <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)}/>
     <div className="ft-order-calc"><span>Maximum leverage <b>{lev?lev+'x':'—'}</b></span><span>Est. initial margin <b>{initial!==null?num(initial,4)+' USDT':'—'}</b></span><span>Free margin <b>{state?.wallet?.valuesAvailable?num(state.wallet.availableBalance,4)+' USDT':'—'}</b></span></div>
-    <div className="ft-trade-buttons"><button type="button" className="buy" disabled={busy||!connected||!book.connected||!book.synchronized||stale} onClick={()=>preview('Buy')}>BUY</button><button type="button" className="short" disabled={busy||!connected||!book.connected||!book.synchronized||stale} onClick={()=>preview('Sell')}>SHORT</button></div>
+    <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button></div>
     
     {!real&&<p className="ft-muted">Preview is read-only. Real execution requires the bot's existing Real / START controls.</p>}
-    {error&&!quote&&<p className="red" role="alert">{error}</p>}
     <div className="ft-wallet">{field('Wallet Balance',state?.wallet?.valuesAvailable?num(usdt,4):'—')}{field('Total Equity',state?.wallet?.valuesAvailable?num(state.wallet.totalEquity,4):'—')}{field('Used Margin',state?.wallet?.valuesAvailable?num(state.wallet.usedMargin,4):'—')}{field('Unrealized P&L',state?.wallet?.valuesAvailable?<span className={state.wallet.unrealizedPnl<0?'red':state.wallet.unrealizedPnl>0?'green':''}>{num(state.wallet.unrealizedPnl,4)}</span>:'—')}</div>
     <fieldset className="ft-symbol-overview"><legend dir="ltr">Symbol Overview</legend><div ref={setSummaryTarget}/></fieldset>
    </section>
@@ -80,9 +65,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   </div>
   <LightPositionLists key={symbol} view="all" summaryTarget={summaryTarget} fixedSymbol={symbol} state={state} onGoCycles={onGoCycles}/>
   <SymbolStatistics key={symbol} symbol={symbol} state={state}/>
-  <LightModal open={Boolean(quote)} title={'Confirm '+(quote?.side==='Buy'?'BUY':'SHORT')+' · '+symbol} confirmLabel="Confirm real market order" onClose={()=>{if(!busy){setQuote(null);setError('');setResult('');}}} onConfirm={real&&!submitted?confirm:undefined} busy={busy} error={error}>
-   {quote&&<><div className="ft-preview"><span>Position value <b>{num(quote.notionalUsdt,4)} USDT</b></span><span>Quantity <b>{quote.quote.qty}</b></span><span>Max leverage <b>{quote.leverage}x</b></span><span>Estimated actual value <b>{num(quote.quote.actualNotional,4)} USDT</b></span><span>Estimated margin <b>{num(quote.quote.estMargin,6)} USDT</b></span><span>Estimated opening fee <b>{num(quote.quote.estOpenFee,6)} USDT</b></span></div><p>Single-side market order. It remains External and is not added to a bot cycle. The server revalidates before submission.</p>{!real&&<p className="red">Real trading is not running. This preview sends no order.</p>}{submitted&&!result&&<p>Submission will not be repeated. Review Trade History if the outcome is unclear.</p>}{result&&<p className="green" role="status">{result}</p>}</>}
-  </LightModal>
+  {orderSide && <ManualOrderDialog key={symbol+orderSide} symbol={symbol} side={orderSide} initialValue={Number(value)} enabled={real} onClose={()=>setOrderSide(null)} onDone={onRefresh}/>}
  </div>;
 };
 

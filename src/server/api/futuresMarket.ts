@@ -43,6 +43,7 @@ futuresRouter.get('/positions/:symbol',async(req,res)=>{
  }catch(e:any){res.status(502).json({error:e.message||'Exchange position lines unavailable'});}
 });
 futuresRouter.get('/instrument/:symbol',async(req,res)=>{try{const symbol=symbolOf(req.params.symbol);res.json({instrument:await displayContract(symbol)});}catch(e:any){res.status(400).json({error:e.message||'Contract metadata unavailable'});}});
+futuresRouter.get('/market-price/:symbol',async(req,res)=>{try{const symbol=symbolOf(req.params.symbol);const tickers=await TradingEngine.getInstance().getClient().getTickers(symbol);const price=Number(tickers[symbol]?.lastPrice);if(!Number.isFinite(price)||price<=0)throw Error('Fresh price unavailable');res.setHeader('Cache-Control','no-store');res.json({symbol,price,checkedAt:Date.now()});}catch(e:any){res.status(502).json({error:e.message||'Fresh price unavailable'});}});
 // Symbols table: 2H/4H/12H/48H/72H/1W/1M change for the symbols on the visible page only (≤ 50), from the shared
 // candle cache (closed candles kept; normally one small tail read per symbol and resolution). Display only.
 futuresRouter.get('/changes',async(req,res)=>{

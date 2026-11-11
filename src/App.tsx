@@ -38,7 +38,7 @@ export default function App() {
       <Suspense fallback={<div className="workspace" role="status">Loading page…</div>}>
       {activeTab === 'not_found' && <div className="content"><h2>Page not found</h2><a href="/Dashboard">Dashboard</a></div>}
       {activeTab === 'dashboard' && <LightDashboard state={state} onRefresh={refresh} />}
-      {activeTab === 'pump_short' && <LightPumpShort />}
+      {activeTab === 'pump_short' && <LightPumpShort state={state} />}
       {activeTab === 'pump_positions' && <LightPumpPositions />}
       {activeTab === 'symbols' && <LightSymbols state={state} onRefresh={refresh} onGoSymbol={setSelectedSymbol} />}
       {activeTab === 'bot_cycles' && <BotCyclesView state={state} onRefresh={refresh} onGoSymbols={() => go('symbols')} />}

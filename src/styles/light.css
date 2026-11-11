@@ -378,3 +378,18 @@ html .sidebar .nav a .nav-count{margin-left:-7px;flex:none;color:#8d9098;font-si
 .page-dashboard .aged-table-title{border-top:1px solid #292930;margin-top:14px;height:24px}
 .page-dashboard .aged-table-title span{left:12px;top:-11px;padding:0 9px;background:#101014}
 .page-dashboard .aged-table-title+.table-wrap{border-top:0}
+
+/* Unified market-order confirmation: same compact rows on Symbols, Futures and Pump Scanner. */
+.manual-order-inputs{display:grid;gap:10px;margin-bottom:14px}
+.manual-order-inputs label{display:grid;gap:5px;font-size:12px;color:#b4b5bb}
+.manual-order-inputs input{width:100%;min-width:0;background:#17171d;color:#fff;border:1px solid #35353d;padding:9px 12px;border-radius:5px;font-size:15px}
+.manual-order-inputs small{color:#92949d;font-size:11px;line-height:1.5}
+.manual-order-toggle{display:flex;gap:8px}
+.manual-order-toggle button,.manual-minimum{border:1px solid #34343b;border-radius:5px;background:#17171d;color:#dedee3;padding:7px 10px;cursor:pointer}
+.manual-order-toggle button.active{border-color:#0bba74;color:#0bba74}
+.manual-order-inputs .manual-minimum{justify-self:start;color:#0bba74}
+.manual-order-toggle button:disabled,.manual-minimum:disabled{opacity:.45;cursor:not-allowed}
+.manual-order-summary{display:grid;gap:0;border-top:1px solid #292930;margin:12px 0}
+.manual-order-summary>div{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 0;min-height:38px}
+.manual-order-summary>div span{color:#8d9098;font-size:13px}
+.manual-order-summary>div strong{color:#fafafa;font-size:13px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
