@@ -77,3 +77,20 @@ export function fundingTotal(cycles:{mode?:string;endedAt?:number;funding?:numbe
  const known=list.filter(c=>Number.isFinite(c.funding));
  return {value:known.length?known.reduce((s,c)=>s+(c.funding as number),0):null,covered:known.length,count:list.length};
 }
+
+/** Ranking of actual losing closes, even if the symbol's overall net is positive.
+ * A row is a loss only when its value for the selected accounting mode is negative.
+ * Unknown-fee NET closes are excluded and explicitly counted as partial coverage. */
+export function topLosingCloses(rows: CloseRecord[], mode: PnlMode, limit=10) {
+ const map=new Map<string,{symbol:string;side:string;count:number;covered:number;value:number;total:number}>();
+ for(const r of rows){
+  const key=r.symbol+'|'+r.side, v=valueOf(r,mode);
+  const g=map.get(key)||{symbol:r.symbol,side:r.side,count:0,covered:0,value:0,total:0};
+  g.total++;
+  if(v!==null&&v<0){g.count++;g.covered++;g.value+=v;}
+  map.set(key,g);
+ }
+ return [...map.values()].filter(g=>g.count>0)
+  .sort((a,b)=>a.value-b.value).slice(0,limit)
+  .map(g=>({symbol:g.symbol,side:g.side,count:g.count,covered:g.covered,value:g.value,partial:mode==='NET'&&rows.some(r=>r.symbol===g.symbol&&r.side===g.side&&r.net===null)}));
+}
