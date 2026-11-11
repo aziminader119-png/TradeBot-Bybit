@@ -61,7 +61,6 @@ export default function App() {
       {activeTab === 'smart_mart_alerts' && <LightAlerts key="smart" view="smart" state={state} />}
       {activeTab === 'alert_history' && <LightAlerts key="history" view="history" state={state} />}
       {activeTab === 'pl_analytics' && <LightPnlAnalytics state={state} />}
-      {activeTab === 'statistics' && <LightReports key="statistics" view="statistics" state={state} />}
       {activeTab === 'logs' && <LightReports key="logs" view="logs" state={state} />}
       {activeTab === 'security' && <LightSecurity state={state} onRefresh={refresh} />}
       {activeTab === 'symbol_trading' && <LightSymbolWorkspace key={selectedSymbol+'|'+state?.settings?.environment+'|'+state?.settings?.apiHost} state={state} symbol={selectedSymbol} onSymbol={setSelectedSymbol} onRefresh={refresh} onGoCycles={() => go('bot_cycles')} onGoSymbols={() => go('symbols')} />}
