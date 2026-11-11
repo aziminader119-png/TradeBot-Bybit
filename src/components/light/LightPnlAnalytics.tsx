@@ -2,7 +2,7 @@ import {SymbolLink} from './SymbolLink.tsx';
 import React,{useEffect,useMemo,useRef,useState} from 'react';
 import type {BotStateSummary,TradeLog} from '../../types/trading.ts';
 import {useRead} from './reports.tsx';
-import {TRADES_URL} from './listCounts.ts';
+import {TRADES_URL,closedUrl} from './listCounts.ts';
 import {FilterChoices} from './FilterChoices.tsx';
 import {DateTime} from './format.tsx';
 import {PnlMode,pnlCloseRecords,pnlStats,dailyPnl,utcKey,valueOf,topSymbols,topLosingCloses,fundingTotal,type FillIntent} from './pnlMath.ts';
@@ -17,6 +17,7 @@ const Reason:Record<string,string>={TP_CLOSE:'TP Execution',CYCLE_CLOSE:'Cycle C
 const Metric:React.FC<{label:string;value:React.ReactNode;tone?:string;title?:string}>=({label,value,tone='',title})=><div className="metric" title={title}><div className="name">{label}</div><div className={'val '+tone}>{value}</div></div>;
 
 type Point={day:string;value:number;buy?:number;sell?:number;count?:number};
+type BybitClosed={id:string;symbol:string;positionSide:string;closedPnl:number;closedAt:number};
 export function PnlChart({data,type='bars',empty='No recorded closed trades.'}:{data:Point[];type?:'bars'|'line'|'sides'|'count';empty?:string}){
  const [hover,setHover]=useState<number|null>(null),[width,setWidth]=useState(700);
  const wrapper=useRef<HTMLDivElement|null>(null);
@@ -47,6 +48,7 @@ export function PnlChart({data,type='bars',empty='No recorded closed trades.'}:{
 }
 export const LightPnlAnalytics:React.FC<{state:BotStateSummary|null}>=({state})=>{
  const read=useRead<{trades:TradeLog[];fillIntents?:FillIntent[];cycleHistory?:any[]}>(PNL_URL,15000);
+ const bybitClosed=useRead<{rows:BybitClosed[];days:number}>(closedUrl(30),60000);
  const [range,setRange]=useState('All Time'),[side,setSide]=useState('ALL'),[mode,setMode]=useState<PnlMode>('NET');
  const [compareSide,setCompareSide]=useState('ALL'),[profitSide,setProfitSide]=useState('ALL'),[lossSide,setLossSide]=useState('ALL');
  const [topSort,setTopSort]=useState<Record<string,{key:'symbol'|'side'|'count'|'value';desc:boolean}>>({});
@@ -64,13 +66,27 @@ export const LightPnlAnalytics:React.FC<{state:BotStateSummary|null}>=({state})=
  const comparison=dailyPnl(rows.filter(r=>compareSide==='ALL'||r.side===compareSide),mode);let b=0,s=0;
  const compare=comparison.map(d=>({...d,buy:b+=d.buy,sell:s+=d.sell,value:b+s}));
  const sideOptions=[{value:'ALL',label:'All'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}];
- const topRows=(filter:string,profitable:boolean)=>profitable?topSymbols(rows.filter(r=>filter==='ALL'||r.side===filter),mode,true):topLosingCloses(rows.filter(r=>filter==='ALL'||r.side===filter),mode);
+ const bybitLosses=useMemo(()=>{
+  const bySymbol=new Map<string,{symbol:string;side:string;count:number;covered:number;value:number;partial:boolean}>();
+  if(bybitClosed.data?.days!==30||!Array.isArray(bybitClosed.data?.rows))return [];
+  for(const t of bybitClosed.data.rows){
+   if(!Number.isFinite(t.closedPnl)||t.closedPnl>=0||!t.symbol)continue;
+   const side=t.positionSide==='Long'?'Buy':t.positionSide==='Short'?'Sell':null;
+   if(!side)continue;
+   const key=t.symbol+'|'+side;
+   const group=bySymbol.get(key)||{symbol:t.symbol,side,count:0,covered:0,value:0,partial:false};
+   group.count++;group.covered++;group.value+=t.closedPnl;bySymbol.set(key,group);
+  }
+  return [...bySymbol.values()].sort((a,b)=>a.value-b.value).slice(0,10);
+ },[bybitClosed.data]);
+ const topRows=(filter:string,profitable:boolean)=>profitable?topSymbols(rows.filter(r=>filter==='ALL'||r.side===filter),mode,true):bybitLosses.filter(r=>filter==='ALL'||r.side===filter);
  const top=(profitable:boolean)=>{const id=profitable?'profit':'loss',selection=topSort[id],original=topRows(profitable?profitSide:lossSide,profitable);
+  const panelAvailable=profitable?available:Boolean(bybitClosed.data?.days===30&&Array.isArray(bybitClosed.data?.rows));
   const sorted=selection?[...original].sort((a,b)=>{const x=a[selection.key],y=b[selection.key];const result=typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y));return selection.desc?-result:result;}):original;
   const sortBy=(key:'symbol'|'side'|'count'|'value')=>setTopSort(current=>({...current,[id]:{key,desc:current[id]?.key===key?!current[id].desc:key==='count'||key==='value'}}));
-  return <section className="panel"><h3>Top 10 <span className={profitable?'green':'red'}>{profitable?'PROFITABLE':'LOSING'}</span> Symbols</h3>{!profitable&&<p className="pnl-loss-explanation">Ranked by losses from individual closed trades, even when a symbol is profitable overall. Fees without verification are excluded in Net mode.</p>}
+  return <section className="panel"><h3>Top 10 <span className={profitable?'green':'red'}>{profitable?'PROFITABLE':'LOSING'}</span> Symbols</h3>{!profitable&&<p className="pnl-loss-explanation">Bybit Closed P&amp;L — last 30 days · individual losing closes, including unmatched/external trades. Exchange-reported P&amp;L; independent of the Net/Gross selector above.</p>}
   <div className="pnl-panel-filters"><FilterChoices<string> label="" value={profitable?profitSide:lossSide} options={sideOptions} onChange={profitable?setProfitSide:setLossSide}/></div>
-  <table><thead><tr>{([['symbol','Symbol'],['side','Side'],['count','Closed Trades'],['value',profitable?'Realized P&L':'Loss on losing closes']] as const).map(([key,label])=><th key={key} className="sort" role="button" tabIndex={0} aria-sort={selection?.key===key?(selection.desc?'descending':'ascending'):'none'} onClick={()=>sortBy(key)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sortBy(key);}}}>{label} <span aria-hidden="true">{selection?.key===key?(selection.desc?'↓':'↑'):'↕'}</span></th>)}</tr></thead><tbody>{available&&sorted.length?sorted.map(g=><tr key={g.symbol+g.side} title={g.partial?'Some closes have unverified fees and are excluded from Net':'Recorded closed trades'}><td><SymbolLink symbol={g.symbol} title={g.symbol} className="symbol-nav-link"><strong>{g.symbol.replace(/USDT$/,'')}</strong></SymbolLink></td><td className={g.side==='Buy'?'pos-buy':'pos-short'}>{g.side==='Buy'?'BUY':'SHORT'}</td><td>{g.count}</td><td className={color(g.value)}>{money(g.value)}{g.partial?' *':''}</td></tr>):<tr><td colSpan={4} className="pnl-table-empty">{available?(mode==='NET'?'No verifiable losing closes in this selection. Try Gross to include closes with missing fees.':'No losing closed trades in this selection.'):'—'}</td></tr>}</tbody></table>
+  <table><thead><tr>{([['symbol','Symbol'],['side','Side'],['count','Closed Trades'],['value',profitable?'Realized P&L':'Loss on losing closes']] as const).map(([key,label])=><th key={key} className="sort" role="button" tabIndex={0} aria-sort={selection?.key===key?(selection.desc?'descending':'ascending'):'none'} onClick={()=>sortBy(key)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sortBy(key);}}}>{label} <span aria-hidden="true">{selection?.key===key?(selection.desc?'↓':'↑'):'↕'}</span></th>)}</tr></thead><tbody>{panelAvailable&&sorted.length?sorted.map(g=><tr key={g.symbol+g.side} title={g.partial?'Some closes have unverified fees and are excluded from Net':'Recorded closed trades'}><td><SymbolLink symbol={g.symbol} title={g.symbol} className="symbol-nav-link"><strong>{g.symbol.replace(/USDT$/,'')}</strong></SymbolLink></td><td className={g.side==='Buy'?'pos-buy':'pos-short'}>{g.side==='Buy'?'BUY':'SHORT'}</td><td>{g.count}</td><td className={color(g.value)}>{money(g.value)}{g.partial?' *':''}</td></tr>):<tr><td colSpan={4} className="pnl-table-empty">{profitable?(available?'No profitable closes in this selection.':'—'):bybitClosed.error?'Bybit closed history unavailable: '+bybitClosed.error:panelAvailable?'No negative closed P&L in Bybit history for the last 30 days.':'Loading Bybit closed history…'}</td></tr>}</tbody></table>
  </section>};
  const reasonGroups=new Map<string,{count:number;value:number;known:boolean}>();
  for(const r of rows){const g=reasonGroups.get(r.reason)||{count:0,value:0,known:true};g.count++;const v=valueOf(r,mode);if(v===null)g.known=false;else g.value+=v;reasonGroups.set(r.reason,g);}
