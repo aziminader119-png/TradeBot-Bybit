@@ -2,6 +2,7 @@ import path from 'node:path';
 import {ClosedHistoryCache, closedAccountScope} from './closedHistoryCache.ts';
 import {futuresRouter} from './futuresMarket.ts';
 import {alertsRouter} from '../alerts/alertsApi.ts';
+import {voiceTtsRouter} from './voiceTts.ts';
 import { Router, Request, Response } from 'express';
 import { BotDatabase } from '../db/database.ts';
 import { TradingEngine } from '../engine/tradingEngine.ts';
@@ -14,6 +15,7 @@ import { PumpShortTrader } from '../engine/pumpShortTrader.ts';
 export const apiRouter = Router();
 apiRouter.use('/futures',futuresRouter);
 apiRouter.use('/indicator-alerts',alertsRouter);
+apiRouter.use('/tts',voiceTtsRouter);
 
 const db = BotDatabase.getInstance();
 const engine = TradingEngine.getInstance();
