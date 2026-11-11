@@ -27,7 +27,6 @@ export const LIGHT_NAV: LightNavItem[] = [
   { id: 'smart_mart_alerts', label: "Smart Mart Alerts", built: true, icon: <><path d="M8 2.2a4 4 0 0 0-4 4c0 3.6-1.6 4.6-1.6 4.6h11.2s-1.6-1-1.6-4.6a4 4 0 0 0-4-4Z"></path><path d="M6.6 13.2a1.5 1.5 0 0 0 2.8 0"></path></> },
   { id: 'alert_history', label: "Alert History", built: true, icon: <><path d="M2.6 8a5.4 5.4 0 1 0 1.6-3.8"></path><path d="M2.4 2.6v2.6H5"></path><path d="M8 5v3.2l2.2 1.4"></path></> },
   { id: 'pl_analytics', label: "P&L Analytics", built: true, icon: <><path d="M2.6 13.4V8.6M6.2 13.4V4.6M9.8 13.4V7.2M13.4 13.4V2.6"></path></> },
-  { id: 'statistics', label: "Statistics", built: true, icon: <><path d="M2.4 8a5.6 5.6 0 1 0 5.6-5.6V8H2.4Z"></path><path d="M9.6 6.4V2.6"></path></> },
   { id: 'logs', label: "Logs", built: true, icon: <><rect x="2.4" y="2.8" width="11.2" height="10.4" rx="1.2"></rect><path d="M5 6l1.8 1.8L5 9.6M8.4 10h3"></path></> },
   { id: 'security', label: 'Security', built: true, icon: <><path d="M8 2 3 4v4c0 3 5 6 5 6s5-3 5-6V4L8 2Z"/><path d="m5.5 8 1.5 1.5L10.5 6"/></> },
 ];
