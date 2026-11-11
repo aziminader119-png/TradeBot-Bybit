@@ -25,12 +25,17 @@ export function LightDumpPositions(){
   const rows=useMemo(()=>(snapshot?.trades||[]).map(row),[snapshot?.trades]);
   const closed=rows.filter(r=>String(r.status).startsWith('CLOSED'));
   const active=rows.filter(r=>!String(r.status).startsWith('CLOSED'));
+  const completed=(snapshot?.trades||[]).filter(t=>t.status==='CLOSED'&&t.exitPrice!==null);
+  const closedPnl=completed.reduce((sum,t)=>sum+(t.realizedPnl??(t.exitPrice!-t.entryPrice)*t.qty),0);
   return <div className="workspace pump-positions-page" data-testid="dump-positions-page">
     {(error||snapshot?.error)&&<p className="lp-error" role="alert">{error||snapshot?.error}</p>}
     <section className="lp-panel symbols-overview"><div className="section-title">Dump BUY Positions</div>
       <ReportSummary items={[["Open / Pending",active.length],["Closed",snapshot?.closedCount||0],
         ["Execution",snapshot?.armed?'ARMED':'DISARMED'],["Realized P&L (USDT)",(snapshot?.realizedPnlUsdt||0).toFixed(4)]]}/></section>
     <section className="lp-panel pump-positions-table"><ReportTable title="Open & Pending Dump BUY Positions" rows={active} columns={columns} empty="No open Dump BUY positions."/></section>
-    <section className="lp-panel pump-positions-table"><ReportTable title="Closed Dump BUY Positions" rows={closed} columns={columns} empty="No closed Dump BUY positions."/></section>
+    <section className="lp-panel pump-positions-table">
+      <ReportSummary items={[[ 'Closed Positions',completed.length ],[ 'Closed P&L (USDT)',closedPnl.toFixed(4) ]]}/>
+      <ReportTable title="Closed Dump BUY Positions" rows={closed} columns={columns} empty="No closed Dump BUY positions."/>
+    </section>
   </div>;
 }
