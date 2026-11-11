@@ -62,6 +62,8 @@ export function LightPumpPositions() {
     : String(r.status).startsWith('RELEASED')
       ? <button className="row-act" disabled={busyId !== null} onClick={() => void change(r, true)}>Add Pump</button> : '—';
   const totalPnl = rows.reduce((sum, row) => sum + (typeof row.pnl === 'number' ? row.pnl : 0), 0);
+  const completed = (data?.trades || []).filter(t => t.status === 'CLOSED' && t.exitPrice !== null);
+  const closedPnl = completed.reduce((sum, t) => sum + (t.entryPrice - t.exitPrice!) * t.qty, 0);
   return <div className="workspace pump-positions-page" data-testid="pump-positions-page">
     {(error || data?.error) && <p role="alert" className="lp-error">{error || data?.error}</p>}
     <section className="lp-panel symbols-overview">
@@ -73,6 +75,9 @@ export function LightPumpPositions() {
       ]} />
     </section>
     <section className="lp-panel pump-positions-table"><ReportTable title="Open & Pending Pump Positions" rows={open} columns={columns} renderActions={actions} empty="No open Pump Short positions." /></section>
-    <section className="lp-panel pump-positions-table"><ReportTable title="Closed / Released Pump Positions" rows={closed} columns={columns} renderActions={actions} empty="No closed or released Pump Short positions." /></section>
+    <section className="lp-panel pump-positions-table">
+      <ReportSummary items={[[ 'Closed Positions', completed.length ], [ 'Closed P&L (USDT)', closedPnl.toFixed(4) ]]} />
+      <ReportTable title="Closed / Released Pump Positions" rows={closed} columns={columns} renderActions={actions} empty="No closed or released Pump Short positions." />
+    </section>
   </div>;
 }
