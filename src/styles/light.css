@@ -357,3 +357,24 @@ html .sidebar .nav a .nav-count{margin-left:-7px;flex:none;color:#8d9098;font-si
 @media(max-width:760px){.page-dashboard .sidebar .brand .sidebar-logo-wide{display:none}.page-dashboard .sidebar .brand .sidebar-logo-icon{display:block}.page-dashboard .sidebar .brand .collapse{display:none}}
 @media(max-width:760px){.page-dashboard .cycle-summary{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .page-dashboard .pnl-design .pnl-coverage{font-size:12px;line-height:1.6;color:var(--orange,#EAA343);border:1px solid currentColor;border-radius:6px;padding:8px 12px;margin:10px 0}
+
+/* All Positions is the canonical table design throughout the dashboard:
+   unboxed rows, horizontal rules only, and the section name sitting on its top rule. */
+.page-dashboard .lp-table,
+.page-dashboard .pnl-design table{border:0!important;border-collapse:collapse;background:transparent;box-shadow:none}
+.page-dashboard .lp-table :is(th,td),
+.page-dashboard .pnl-design table :is(th,td){border-left:0!important;border-right:0!important;border-top:0!important;box-shadow:none}
+.page-dashboard .lp-table thead th,
+.page-dashboard .pnl-design table thead th{border-bottom:1px solid #292930!important;background:transparent}
+.page-dashboard .lp-table tbody td,
+.page-dashboard .pnl-design table tbody td{border-bottom:1px solid #292930!important}
+.page-dashboard .lp-table tbody tr:last-child td,
+.page-dashboard .pnl-design table tbody tr:last-child td{border-bottom:0!important}
+.page-dashboard .lp-table th.sort:focus-visible,
+.page-dashboard .pnl-design th.sort:focus-visible{outline:2px solid var(--blue,#3d6bff);outline-offset:-2px}
+.page-dashboard .pnl-design th.sort{cursor:pointer;user-select:none}
+.page-dashboard .pnl-design th.sort:hover,
+.page-dashboard .pnl-design th.sort[aria-sort]:not([aria-sort="none"]){color:var(--orange)}
+.page-dashboard .aged-table-title{border-top:1px solid #292930;margin-top:14px;height:24px}
+.page-dashboard .aged-table-title span{left:12px;top:-11px;padding:0 9px;background:#101014}
+.page-dashboard .aged-table-title+.table-wrap{border-top:0}

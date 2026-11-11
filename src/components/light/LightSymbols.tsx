@@ -215,7 +215,6 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
       </section>
 
       <section className="lp-panel symbols-panel">
-        <div className="section-title">All Symbols</div>
         {error && <div className="lp-error" data-testid="symbols-error" role="alert">Symbol list from Bybit unavailable: {error} <button type="button" onClick={()=>refreshReportRead('/api/symbols')}>Retry</button></div>}
         <div className="lp-toolbar">
           <div className="tb-left"><input className="search" type="search" placeholder="Search by Symbol (e.g. BTC)..." aria-label="Search symbols" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="symbol-search" /></div>
@@ -225,6 +224,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
         </div>
         {historyBusy && <div role="status" className="ft-muted">Loading historical changes: {historyProgress.done} / {historyProgress.total} symbols…</div>}
         {historyError && <div role="alert" className="lp-error">{historyError} — click the column again to retry.</div>}
+        <div className="aged-table-title"><span>All Symbols</span></div>
         <div className="table-wrap" role="region" tabIndex={0} aria-label="Symbols table">
           <table className="lp-table symbols-table" data-testid="symbols-table">
             <colgroup><col style={{ width: '10%' }} /><col style={{ width: '4.5%' }} /><col style={{ width: '8.5%' }} />{Array.from({ length: 9 }, (_, i) => <col key={i} style={{ width: '4.8%' }} />)}<col style={{ width: '8%' }} /><col style={{ width: '9.5%' }} /><col style={{ width: '12.3%' }} /></colgroup>

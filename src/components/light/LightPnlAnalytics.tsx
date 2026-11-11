@@ -48,6 +48,7 @@ export const LightPnlAnalytics:React.FC<{state:BotStateSummary|null}>=({state})=
  const read=useRead<{trades:TradeLog[];fillIntents?:FillIntent[];cycleHistory?:any[]}>(PNL_URL,15000);
  const [range,setRange]=useState('All Time'),[side,setSide]=useState('ALL'),[mode,setMode]=useState<PnlMode>('NET');
  const [compareSide,setCompareSide]=useState('ALL'),[profitSide,setProfitSide]=useState('ALL'),[lossSide,setLossSide]=useState('ALL');
+ const [topSort,setTopSort]=useState<Record<string,{key:'symbol'|'side'|'count'|'value';desc:boolean}>>({});
  const [month,setMonth]=useState(()=>{const d=new Date();return Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),1);});
  const ledger=useMemo(()=>pnlCloseRecords(state&&read.data?{...state,trades:read.data.trades||[]}:null,read.data?.fillIntents||[]),[state,read.data]);
  const now=Date.now(),since=range==='Daily'?now-86400000:range==='Weekly'?now-7*86400000:range==='Monthly'?now-30*86400000:-Infinity;
@@ -63,10 +64,13 @@ export const LightPnlAnalytics:React.FC<{state:BotStateSummary|null}>=({state})=
  const compare=comparison.map(d=>({...d,buy:b+=d.buy,sell:s+=d.sell,value:b+s}));
  const sideOptions=[{value:'ALL',label:'All'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}];
  const topRows=(filter:string,profitable:boolean)=>topSymbols(rows.filter(r=>filter==='ALL'||r.side===filter),mode,profitable);
- const top=(profitable:boolean)=><section className="panel"><h3>Top 10 <span className={profitable?'green':'red'}>{profitable?'PROFITABLE':'LOSING'}</span> Symbols</h3>
+ const top=(profitable:boolean)=>{const id=profitable?'profit':'loss',selection=topSort[id],original=topRows(profitable?profitSide:lossSide,profitable);
+  const sorted=selection?[...original].sort((a,b)=>{const x=a[selection.key],y=b[selection.key];const result=typeof x==='number'&&typeof y==='number'?x-y:String(x).localeCompare(String(y));return selection.desc?-result:result;}):original;
+  const sortBy=(key:'symbol'|'side'|'count'|'value')=>setTopSort(current=>({...current,[id]:{key,desc:current[id]?.key===key?!current[id].desc:key==='count'||key==='value'}}));
+  return <section className="panel"><h3>Top 10 <span className={profitable?'green':'red'}>{profitable?'PROFITABLE':'LOSING'}</span> Symbols</h3>
   <div className="pnl-panel-filters"><FilterChoices<string> label="" value={profitable?profitSide:lossSide} options={sideOptions} onChange={profitable?setProfitSide:setLossSide}/></div>
-  <table><thead><tr><th>Symbol</th><th>Side</th><th>Closed Trades</th><th>Realized P&amp;L</th></tr></thead><tbody>{available&&topRows(profitable?profitSide:lossSide,profitable).length?topRows(profitable?profitSide:lossSide,profitable).map(g=><tr key={g.symbol+g.side} title={g.partial?g.covered+' of '+g.count+' closes have verified fees':undefined}><td><SymbolLink symbol={g.symbol} title={g.symbol} className="symbol-nav-link"><strong>{g.symbol.replace(/USDT$/,'')}</strong></SymbolLink></td><td className={g.side==='Buy'?'pos-buy':'pos-short'}>{g.side==='Buy'?'BUY':'SHORT'}</td><td>{g.count}</td><td className={color(g.value)}>{money(g.value)}{g.partial?' *':''}</td></tr>):<tr><td colSpan={4} className="pnl-table-empty">{available?'No matching closed trades.':'—'}</td></tr>}</tbody></table>
- </section>;
+  <table><thead><tr>{([['symbol','Symbol'],['side','Side'],['count','Closed Trades'],['value','Realized P&L']] as const).map(([key,label])=><th key={key} className="sort" role="button" tabIndex={0} aria-sort={selection?.key===key?(selection.desc?'descending':'ascending'):'none'} onClick={()=>sortBy(key)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();sortBy(key);}}}>{label} <span aria-hidden="true">{selection?.key===key?(selection.desc?'↓':'↑'):'↕'}</span></th>)}</tr></thead><tbody>{available&&sorted.length?sorted.map(g=><tr key={g.symbol+g.side} title={g.partial?g.covered+' of '+g.count+' closes have verified fees':undefined}><td><SymbolLink symbol={g.symbol} title={g.symbol} className="symbol-nav-link"><strong>{g.symbol.replace(/USDT$/,'')}</strong></SymbolLink></td><td className={g.side==='Buy'?'pos-buy':'pos-short'}>{g.side==='Buy'?'BUY':'SHORT'}</td><td>{g.count}</td><td className={color(g.value)}>{money(g.value)}{g.partial?' *':''}</td></tr>):<tr><td colSpan={4} className="pnl-table-empty">{available?'No matching closed trades.':'—'}</td></tr>}</tbody></table>
+ </section>};
  const reasonGroups=new Map<string,{count:number;value:number;known:boolean}>();
  for(const r of rows){const g=reasonGroups.get(r.reason)||{count:0,value:0,known:true};g.count++;const v=valueOf(r,mode);if(v===null)g.known=false;else g.value+=v;reasonGroups.set(r.reason,g);}
  const activity=new Map<string,number>();for(const r of rows)activity.set(r.symbol,(activity.get(r.symbol)||0)+1);
