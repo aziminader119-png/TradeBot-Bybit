@@ -6,7 +6,7 @@ import { C, num, panel, px, signed } from '../dashboard/ApiCard.tsx';
 // Phase 6: real Bybit positions only (from the last successful sync), with clear Bot / External ownership.
 export const OpenPositionsView: React.FC<{ state: BotStateSummary | null; owner?: 'bot' | 'external' }> = ({ state, owner }) => {
   const conn: any = (state as any)?.connection;
-  const synced = conn?.state === 'CONNECTED' && conn?.positionsSyncedAt;
+  const synced = Boolean(state?.settings?.isApiKeyConfigured && conn?.positionsSyncedAt);
   const cycles: Record<string, StrategyCycle> = (state as any)?.strategyCycles || {};
   const strategies: Record<string, StrategyConfig> = (state as any)?.strategies || {};
   const rows = synced ? (state?.positions || []).filter((p) => !p.paper && !p.missingOnExchangeSince && p.size > 0 && (!owner || (owner === 'bot' ? p.owner === 'bot' : p.owner !== 'bot'))) : [];

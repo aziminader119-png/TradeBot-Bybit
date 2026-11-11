@@ -3,7 +3,7 @@ import type {OrderLine} from '../../vendor/mg-chart/core/renderer/order-lines';
 export type ExchangeChartPosition={side:'Buy'|'Sell';size:number;entryPrice:number;unrealizedPnl:number|null;takeProfit:number|null;stopLoss:number|null};
 const positive=(v:unknown):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>0;
 export function positionLines(symbol:string,state:BotStateSummary|null,exchange:ExchangeChartPosition[]|null,mark?:number):OrderLine[]{
- if(state?.connection?.state!=='CONNECTED'||!state.connection.positionsSyncedAt)return [];
+ if(!state?.settings?.isApiKeyConfigured||!state.connection?.positionsSyncedAt)return [];
  const local=state.positions.filter(p=>p.symbol===symbol&&!p.paper&&!p.missingOnExchangeSince&&p.size>0);
  const positions=exchange??local.map(p=>({side:p.side,size:p.size,entryPrice:p.entryPrice,unrealizedPnl:p.unrealizedPnl,takeProfit:null,stopLoss:null}));
  const lines:OrderLine[]=[];

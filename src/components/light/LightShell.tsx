@@ -24,10 +24,11 @@ export function usePolled<T>(url: string | null, ms: number, map: (d: any) => T 
   return read.data ? map(read.data) : null;
 }
 
-/** synced, real (non-paper) open positions on Bybit; null when not synced */
+/** Last successful Bybit position snapshot; wallet/API errors must not hide positions.
+ * The position-sync timestamp remains visible so stale data is clearly labelled. */
 export function syncedPositions(state: BotStateSummary | null) {
   const c: any = (state as any)?.connection;
-  if (!(c?.state === 'CONNECTED' && c?.positionsSyncedAt)) return null;
+  if (!state?.settings?.isApiKeyConfigured || !(Number(c?.positionsSyncedAt) > 0)) return null;
   return (state?.positions || []).filter((p) => !p.paper && !p.missingOnExchangeSince && p.size > 0);
 }
 
