@@ -30,9 +30,9 @@ export class DumpBuyTrader {
     }catch(e:any){this.error=`Cannot read Dump BUY ledger: ${e.message}`;}
   }
   private save(){fs.mkdirSync(path.dirname(this.file),{recursive:true});const tmp=this.file+'.tmp';fs.writeFileSync(tmp,JSON.stringify(this.trades,null,2),{mode:0o600});fs.renameSync(tmp,this.file);}
-  private cfg(){return this.db.getSettings().dumpBuy||{minDropPct:50,lookbackDays:20};}
+  private cfg(){return {minDropPct:50,lookbackDays:20,recoveryPct:50,positionNotionalUsdt:30,maxPositions:10,...this.db.getSettings().dumpBuy};}
   /** Mirror Pump Short's 50% wave retracement: take profit halfway back to pre-dump peak. */
-  private tp(entry:number,peak:number){return dumpBuyEntryTarget(entry,peak);}
+  private tp(entry:number,peak:number,recoveryPct=this.cfg().recoveryPct){return dumpBuyEntryTarget(entry,peak,recoveryPct);}
   public snapshot(){const trades=this.trades.slice().reverse().map(t=>({...t,markPrice:this.marks[t.symbol]||null,
     unrealizedPnl:t.status==='OPEN'&&this.marks[t.symbol]?(this.marks[t.symbol]-t.entryPrice)*t.qty:null,
     realizedPnl:t.status==='CLOSED'&&t.exitPrice!==null?(t.exitPrice-t.entryPrice)*t.qty:null}));
@@ -72,7 +72,7 @@ export class DumpBuyTrader {
       }
       if(!this.armed||this.db.getSettings().emergencyStop||this.engine.getTradingMode()!=='REAL')return;
       const scan=this.scanner.dumpSnapshot();if(scan.running||!scan.lastCompletedAt||Date.now()-scan.lastCompletedAt>10*60_000)return;
-      const active=this.trades.filter(t=>t.status!=='CLOSED').length;if(active>=10)return;
+      const active=this.trades.filter(t=>t.status!=='CLOSED').length;if(active>=this.cfg().maxPositions)return;
       for(const candidate of scan.candidates){
         if(candidate.excludedBuy||this.trades.some(t=>t.symbol===candidate.symbol&&t.status!=='CLOSED')||(this.cooldown.get(candidate.symbol)||0)>Date.now())continue;
         if(positions.some(p=>p.symbol===candidate.symbol&&Number(p.size)>0))continue;
@@ -82,7 +82,7 @@ export class DumpBuyTrader {
         if(!instrument||instrument.missingRules?.length||!(price>0))continue;
         // The candidate may have recovered since the last scanner pass.
         if((candidate.peak-price)/candidate.peak*100<this.cfg().minDropPct)continue;
-        const notional=30;const step=instrument.qtyStep,decimals=String(step).split('.')[1]?.length||0;
+        const notional=this.cfg().positionNotionalUsdt;const step=instrument.qtyStep,decimals=String(step).split('.')[1]?.length||0;
         const qty=Number((Math.floor(notional/price/step+1e-9)*step).toFixed(decimals));
         if(qty<instrument.minQty||qty>instrument.maxQty||qty*price<instrument.minNotional)continue;
         this.engine.assertOrderAllowed(false,'automated',`Dump BUY entry ${candidate.symbol}`);

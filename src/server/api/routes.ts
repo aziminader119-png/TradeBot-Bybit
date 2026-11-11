@@ -86,16 +86,29 @@ apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
   }
 });
 apiRouter.get('/pump-short/scan', (_req: Request, res: Response) => res.json(pumpScanner.snapshot()));
-apiRouter.get('/dump-buy/settings', (_req: Request, res: Response) => res.json({ settings: db.getSettings().dumpBuy || { minDropPct: 50, lookbackDays: 20 } }));
+const defaultDumpBuy = { minDropPct: 50, lookbackDays: 20, recoveryPct: 50, positionNotionalUsdt: 30, maxPositions: 10 };
+apiRouter.get('/dump-buy/settings', (_req: Request, res: Response) => res.json({ settings: { ...defaultDumpBuy, ...db.getSettings().dumpBuy } }));
 apiRouter.post('/dump-buy/settings', (req: Request, res: Response) => {
-  const minDropPct = Number(req.body?.minDropPct), lookbackDays = Number(req.body?.lookbackDays);
-  if (!Number.isFinite(minDropPct) || minDropPct <= 0 || minDropPct >= 100 || !Number.isInteger(lookbackDays) || lookbackDays < 1 || lookbackDays > 365) {
-    return res.status(400).json({ success: false, error: 'Drop threshold must be between 0 and 100%; lookback must be 1–365 days.' });
+  const current = { ...defaultDumpBuy, ...db.getSettings().dumpBuy };
+  const data = req.body || {};
+  const settings = {
+    minDropPct: Number(data.minDropPct),
+    lookbackDays: Number(data.lookbackDays),
+    recoveryPct: data.recoveryPct === undefined ? current.recoveryPct : Number(data.recoveryPct),
+    positionNotionalUsdt: data.positionNotionalUsdt === undefined ? current.positionNotionalUsdt : Number(data.positionNotionalUsdt),
+    maxPositions: data.maxPositions === undefined ? current.maxPositions : Number(data.maxPositions),
+  };
+  if (!(Number.isFinite(settings.minDropPct) && settings.minDropPct > 0 && settings.minDropPct < 100
+    && Number.isInteger(settings.lookbackDays) && settings.lookbackDays >= 1 && settings.lookbackDays <= 365
+    && Number.isFinite(settings.recoveryPct) && settings.recoveryPct > 0 && settings.recoveryPct <= 100
+    && Number.isFinite(settings.positionNotionalUsdt) && settings.positionNotionalUsdt > 0 && settings.positionNotionalUsdt <= 100000
+    && Number.isInteger(settings.maxPositions) && settings.maxPositions >= 1 && settings.maxPositions <= 200)) {
+    return res.status(400).json({ success: false, error: 'Invalid Dump BUY settings: drop 0–100%, days 1–365, recovery 0–100%, position size > 0 USDT, max positions 1–200.' });
   }
-  db.updateSettings({ dumpBuy: { minDropPct, lookbackDays } });
+  db.updateSettings({ dumpBuy: settings });
   void pumpScanner.scan();
   wsServer.broadcastSnapshot();
-  return res.json({ success: true, settings: { minDropPct, lookbackDays } });
+  return res.json({ success: true, settings });
 });
 apiRouter.get('/dump-buy/scan', (_req: Request, res: Response) => res.json(pumpScanner.dumpSnapshot()));
 apiRouter.get('/dump-buy/positions', (_req: Request, res: Response) => res.json(dumpTrader.snapshot()));

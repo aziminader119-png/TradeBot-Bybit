@@ -50,7 +50,7 @@ const DEFAULT_SETTINGS: GlobalSettings = {
   soundAlerts: true,
   autoReconcileIntervalSec: 10,
   pumpShort: { lookbackDays: 10, minGrowthPct: 20, retracementPct: 50, positionNotionalUsdt: 30, maxPositions: 10 },
-  dumpBuy: { minDropPct: 50, lookbackDays: 20 },
+  dumpBuy: { minDropPct: 50, lookbackDays: 20, recoveryPct: 50, positionNotionalUsdt: 30, maxPositions: 10 },
   defaultPositionSizeLong: 10,
   defaultPositionSizeShort: 10,
   defaultTpPctLong: 5.0,
@@ -172,7 +172,7 @@ export class BotDatabase {
         const raw = fs.readFileSync(this.filePath, 'utf-8');
         const parsed = JSON.parse(raw);
         return {
-          settings: { ...DEFAULT_SETTINGS, ...parsed.settings },
+          settings: { ...DEFAULT_SETTINGS, ...parsed.settings, dumpBuy: { ...DEFAULT_SETTINGS.dumpBuy!, ...(parsed.settings?.dumpBuy || {}) } },
           // Phase 1: never inject sample symbol configs into an existing database.
           symbolsConfig: parsed.symbolsConfig || {},
           positions: parsed.positions || [],

@@ -55,7 +55,7 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const account = useRead<AccountInfo>('/api/auth/account', 120000);
   const [toast, showToast] = useToast();
   const [pump, setPump] = useState({ minGrowthPct: '20', lookbackDays: '10', retracementPct: '50', positionNotionalUsdt: '30', maxPositions: '10' });
-  const [dump, setDump] = useState({ minDropPct: '50', lookbackDays: '20' });
+  const [dump, setDump] = useState({ minDropPct: '50', lookbackDays: '20', recoveryPct: '50', positionNotionalUsdt: '30', maxPositions: '10' });
   const [dumpSaving, setDumpSaving] = useState(false);
   const [dumpStatus, setDumpStatus] = useState<string | null>(null);
   const [dumpError, setDumpError] = useState<string | null>(null);
@@ -74,22 +74,22 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   }, []);
   useEffect(() => {
     fetch('/api/dump-buy/settings').then(async r => { const data = await r.json(); if (!r.ok) throw Error(data.error || 'Cannot load Dump settings');
-      setDump({ minDropPct: String(data.settings.minDropPct), lookbackDays: String(data.settings.lookbackDays) });
+      setDump({ minDropPct: String(data.settings.minDropPct), lookbackDays: String(data.settings.lookbackDays), recoveryPct: String(data.settings.recoveryPct ?? 50), positionNotionalUsdt: String(data.settings.positionNotionalUsdt ?? 30), maxPositions: String(data.settings.maxPositions ?? 10) });
     }).catch(e => setDumpError(e.message));
   }, []);
   useEffect(()=>{const refresh=()=>void fetch('/api/dump-buy/positions').then(r=>r.json()).then(d=>setDumpExecution({armed:Boolean(d.armed),mode:String(d.mode||'OFF')})).catch(()=>{});
     refresh();const timer=setInterval(refresh,5000);return()=>clearInterval(timer);},[]);
   const armDump=async(enabled:boolean)=>{
-    if(!window.confirm(enabled?'Enable REAL automated Dump BUY orders? Max 10 open positions; 30 USDT per entry; exit at 50% retracement toward the previous high.':'Stop Dump BUY automation? Existing positions remain open.'))return;
+    if(!window.confirm(enabled?`Enable REAL automated Dump BUY? Up to ${dump.maxPositions} positions; ${dump.positionNotionalUsdt} USDT per entry; ${dump.recoveryPct}% recovery toward previous high. Save settings first.`:'Stop Dump BUY entries and exits? Existing positions remain open.'))return;
     setDumpArmBusy(true);setDumpError(null);
     try{const r=await postJson('/api/dump-buy/arm',{enabled,confirm:true});if(!r.ok)throw Error(r.data?.error||`HTTP ${r.status}`);
       setDumpExecution({armed:Boolean(r.data.armed),mode:String(r.data.mode)});showToast(enabled?'Dump BUY automation enabled':'Dump BUY automation stopped');}
     catch(e:any){setDumpError(e.message||String(e));}finally{setDumpArmBusy(false);}
   };
   const saveDump = async () => {
-    const body = { minDropPct: Number(dump.minDropPct), lookbackDays: Number(dump.lookbackDays) };
-    if (!dump.minDropPct.trim() || !dump.lookbackDays.trim() || !(body.minDropPct > 0 && body.minDropPct < 100) || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365) {
-      setDumpError('Enter a drop percentage between 0 and 100, and lookback days 1–365.'); return;
+    const body = { minDropPct: Number(dump.minDropPct), lookbackDays: Number(dump.lookbackDays), recoveryPct: Number(dump.recoveryPct), positionNotionalUsdt: Number(dump.positionNotionalUsdt), maxPositions: Number(dump.maxPositions) };
+    if (!dump.minDropPct.trim() || !dump.lookbackDays.trim() || !(body.minDropPct > 0 && body.minDropPct < 100) || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365 || !dump.recoveryPct.trim() || !(body.recoveryPct > 0 && body.recoveryPct <= 100) || !dump.positionNotionalUsdt.trim() || !(body.positionNotionalUsdt > 0 && body.positionNotionalUsdt <= 100000) || !dump.maxPositions.trim() || !Number.isInteger(body.maxPositions) || body.maxPositions < 1 || body.maxPositions > 200) {
+      setDumpError('Enter valid drop %, lookback 1–365 days, recovery 0–100%, size > 0 USDT and max positions 1–200.'); return;
     }
     setDumpSaving(true); setDumpError(null); setDumpStatus(null);
     try { const r = await postJson('/api/dump-buy/settings', body); if (!r.ok) throw Error(r.data?.error || 'Save failed');
@@ -310,10 +310,13 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))',gap:8 }}>
           <label style={labelStyle()}>Minimum drop (%)<input aria-label="Dump minimum drop percent" type="number" min="0.1" max="99.9" step="0.1" value={dump.minDropPct} onChange={e=>setDump(d=>({...d,minDropPct:e.target.value}))}/></label>
           <label style={labelStyle()}>Lookback (days)<input aria-label="Dump lookback days" type="number" min="1" max="365" step="1" value={dump.lookbackDays} onChange={e=>setDump(d=>({...d,lookbackDays:e.target.value}))}/></label>
+          <label style={labelStyle()}>Exit recovery (%)<input aria-label="Dump exit recovery percent" type="number" min="0.1" max="100" step="0.1" value={dump.recoveryPct} onChange={e=>setDump(d=>({...d,recoveryPct:e.target.value}))}/></label>
+          <label style={labelStyle()}>Position size (USDT)<input aria-label="Dump position size USDT" type="number" min="0.01" step="0.01" value={dump.positionNotionalUsdt} onChange={e=>setDump(d=>({...d,positionNotionalUsdt:e.target.value}))}/></label>
+          <label style={labelStyle()}>Max Dump Positions<input aria-label="Dump max positions" type="number" min="1" max="200" step="1" value={dump.maxPositions} onChange={e=>setDump(d=>({...d,maxPositions:e.target.value}))}/></label>
         </div>
         <div style={{ display:'flex',gap:10,alignItems:'center',marginTop:8,flexWrap:'wrap' }}>
-          <span style={{fontSize:12}}>30 USDT / BUY · max 10 · 50% recovery toward prior high · disarmed after restart</span>
-          <button type="button" disabled={dumpArmBusy} onClick={()=>void armDump(!dumpExecution?.armed)}>{dumpExecution?.armed?'Stop Auto BUY':'Enable Auto BUY'}</button>
+          <span style={{fontSize:12}}>Dump Buy: <strong className={dumpExecution?.armed ? 'green' : 'red'}>{dumpExecution?.armed ? 'ARMED' : 'DISARMED'}</strong> · disarmed after restart</span>
+          <button type="button" disabled={dumpArmBusy || (dumpExecution?.armed ? false : dumpExecution?.mode !== 'REAL')} onClick={()=>void armDump(!dumpExecution?.armed)}>{dumpExecution?.armed?'Stop Auto BUY':'Enable Auto BUY'}</button>
           <button type="button" onClick={()=>navigate('/DumpBuy')}>View Dump Scanner</button>
           <button type="button" onClick={()=>navigate('/DumpPositions')}>Dump Positions</button><span style={{flex:1}}/>
           <button className="save" type="button" disabled={dumpSaving} onClick={()=>void saveDump()}>{dumpSaving?'Saving…':'Save'}</button>

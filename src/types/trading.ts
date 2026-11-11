@@ -124,7 +124,7 @@ export interface GlobalSettings {
   /** Independent Pump Short module settings. Does not alter legacy hedge strategies. */
   pumpShort?: { lookbackDays: number; minGrowthPct: number; retracementPct: number; positionNotionalUsdt: number; maxPositions?: number };
   /** Read-only Dump Buy scanner threshold; manual BUY always requires a separate confirmation. */
-  dumpBuy?: { minDropPct: number; lookbackDays: number };
+  dumpBuy?: { minDropPct: number; lookbackDays: number; recoveryPct: number; positionNotionalUsdt: number; maxPositions: number };
 }
 
 export interface RiskThresholds { deepLossPct: number; deepProfitPct: number; highMarginUsdt: number }
