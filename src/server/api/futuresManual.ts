@@ -16,7 +16,7 @@ export async function manualFuturesQuote(engine:TradingEngine,db:BotDatabase,sym
  if(db.getIntents().some(i=>i.symbol===symbol&&i.action==='OPEN'&&i.mode==='LIVE'&&(i.status==='FILLED'||i.status==='PARTIAL')&&Date.now()-i.updatedAt<15000))throw Error('A recent fill is awaiting exchange synchronization; wait before starting another position');
  const client=engine.getClient();
  const [instruments,tickers,positions,wallet]=await Promise.all([client.getFuturesContract(symbol),client.getTickers(symbol),client.getPositions(symbol),client.getWalletBalance()]);
- if(positions.some(p=>Number(p.size)>0))throw Error('This symbol already has an open position; it and its leverage are left untouched');
+ if(positions.some(p=>p.side===side&&Number(p.size)>0))throw Error(`This symbol already has an open ${side === 'Buy' ? 'BUY' : 'SHORT'} position; a second order would merge into it`);
  if(positions.some(p=>Number(p.positionIdx)===0))throw Error('Switch this symbol to Hedge mode on Bybit first');
  const info=instruments,price=Number(tickers[symbol]?.lastPrice);
  if(!info||![info.qtyStep,info.minQty,info.minNotional,info.maxLeverage,info.maxMarketQty].every(v=>v!==null&&Number.isFinite(v)&&v>0)||!Number.isFinite(price)||price<=0)throw Error('Fresh price or verified instrument rules unavailable');
@@ -26,6 +26,9 @@ export async function manualFuturesQuote(engine:TradingEngine,db:BotDatabase,sym
  if(Number.isFinite(rules.maxQty)&&quote.qty>rules.maxQty)throw Error('Quantity exceeds the current exchange market-order limit');
  const estimatedFee=quote.estOpenFee||0;
  if(!Number.isFinite(wallet.availableBalance)||quote.estMargin+estimatedFee>wallet.availableBalance)throw Error('Insufficient available balance for estimated margin and opening fee');
- return {quote,price,rules,leverage:rules.maxLeverage,checkedAt:Date.now(),symbol,side,notionalUsdt:notional,feeIsEstimate:true,ownership:'external' as const};
+ const opposite = positions.find(p=>p.side!==side&&Number(p.size)>0);
+ const otherSideLeverage = opposite ? Number(opposite.leverage) : null;
+ if(opposite && !(otherSideLeverage && Number.isFinite(otherSideLeverage) && otherSideLeverage>0))throw Error('Existing opposite-side leverage cannot be verified; no order will be sent');
+ return {quote,price,rules,leverage:rules.maxLeverage,otherSideLeverage,checkedAt:Date.now(),symbol,side,notionalUsdt:notional,feeIsEstimate:true,ownership:'external' as const};
 }
 

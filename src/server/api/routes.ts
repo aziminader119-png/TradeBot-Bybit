@@ -81,6 +81,22 @@ apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
   }
 });
 apiRouter.get('/pump-short/scan', (_req: Request, res: Response) => res.json(pumpScanner.snapshot()));
+apiRouter.get('/dump-buy/settings', (_req: Request, res: Response) => res.json({ settings: db.getSettings().dumpBuy || { minDropPct: 60, lookbackDays: 10 } }));
+apiRouter.post('/dump-buy/settings', (req: Request, res: Response) => {
+  const minDropPct = Number(req.body?.minDropPct), lookbackDays = Number(req.body?.lookbackDays);
+  if (!Number.isFinite(minDropPct) || minDropPct <= 0 || minDropPct >= 100 || !Number.isInteger(lookbackDays) || lookbackDays < 1 || lookbackDays > 365) {
+    return res.status(400).json({ success: false, error: 'Drop threshold must be between 0 and 100%; lookback must be 1–365 days.' });
+  }
+  db.updateSettings({ dumpBuy: { minDropPct, lookbackDays } });
+  void pumpScanner.scan();
+  wsServer.broadcastSnapshot();
+  return res.json({ success: true, settings: { minDropPct, lookbackDays } });
+});
+apiRouter.get('/dump-buy/scan', (_req: Request, res: Response) => res.json(pumpScanner.dumpSnapshot()));
+apiRouter.post('/dump-buy/scan', (_req: Request, res: Response) => {
+  if (!pumpScanner.snapshot().running) void pumpScanner.scan();
+  res.json({ success: true, ...pumpScanner.dumpSnapshot() });
+});
 apiRouter.post('/pump-short/scan', (_req: Request, res: Response) => {
   if (!pumpScanner.snapshot().running) void pumpScanner.scan();
   res.json({ success: true, ...pumpScanner.snapshot() });

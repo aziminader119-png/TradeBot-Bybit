@@ -823,7 +823,7 @@ export class StrategyEngine {
   }
 
   // ---------- manual external orders (terminal) ----------
-  public async manualExternalOpen(symbol: string, side: Side, marginUsdt: number, leverage: number, manual?: {notionalUsdt:number;requestId:string;prepare:()=>Promise<{price:number;rules:InstrumentRules;leverage:number}>}): Promise<OrderIntent> {
+  public async manualExternalOpen(symbol: string, side: Side, marginUsdt: number, leverage: number, manual?: {notionalUsdt:number;requestId:string;prepare:()=>Promise<{price:number;rules:InstrumentRules;leverage:number;otherSideLeverage?:number|null}>}): Promise<OrderIntent> {
     return this.withLock(symbol, async () => {
       if(manual){
         const previous=this.db.getIntents().find(i=>i.manualRequestId===manual.requestId);
@@ -837,7 +837,10 @@ export class StrategyEngine {
       if (!rules) throw new Error('Instrument rules not loaded');
       const q = manual ? quoteNotional(symbol,side,manual.notionalUsdt,leverage,fresh!.price,rules,null) : quoteSide(symbol, side, marginUsdt, leverage, this.d.getPrice(symbol) || 0, rules, null);
       if (!q.ok) throw new Error(q.error);
-      const i = await this.execute({ cycle: null, symbol, side, action: 'OPEN', reduceOnly: false, qty: q.qty, origin: 'user', leverage, ...(manual?{manualRequest:{id:manual.requestId,value:manual.notionalUsdt}}:{}) });
+      // Preserve the leverage of an existing external opposite side. If the exchange
+      // refuses asymmetric leverage, abort before placing a market order.
+      const orderLeverage = fresh?.otherSideLeverage ? { buy: side === 'Buy' ? leverage : fresh.otherSideLeverage, sell: side === 'Sell' ? leverage : fresh.otherSideLeverage } : leverage;
+      const i = await this.execute({ cycle: null, symbol, side, action: 'OPEN', reduceOnly: false, qty: q.qty, origin: 'user', leverage: orderLeverage, ...(manual?{manualRequest:{id:manual.requestId,value:manual.notionalUsdt}}:{}) });
       if (i.status === 'FILLED' || i.status === 'PARTIAL') {
         this.recordTrade(null, i, 0);
         if (i.mode === 'PAPER') {

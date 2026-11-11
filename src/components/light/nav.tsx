@@ -6,6 +6,7 @@ export type LightNavItem = { id: string; label: string; built: boolean; icon: Re
 export const LIGHT_NAV: LightNavItem[] = [
   { id: 'dashboard', label: "Dashboard", built: true, icon: <><rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1"></rect><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1"></rect><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1"></rect><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1"></rect></> },
   { id: 'pump_short', label: 'Pump Short', built: true, icon: <><path d="M2 12 L6 8 L9 10 L14 3"></path><path d="M10 3h4v4"></path><path d="M10 12h4"></path></> },
+  { id: 'dump_buy', label: 'Dump Buy', built: true, icon: <><path d="M2 3l4 4 3-2 5 8"></path><path d="M10 13h4V9"></path></> },
   { id: 'pump_positions', label: 'Pump Positions', built: true, icon: <><path d="M2 5h12M2 9h12M2 13h12"></path><path d="M5 3v12"></path></> },
   { id: 'closed_positions', label: "Closed Positions", built: true, icon: <><rect x="3.2" y="2.2" width="9.6" height="11.6" rx="1"></rect><path d="M5.6 8l1.8 1.8 3.2-3.8"></path></> },
   { id: 'symbols', label: "Symbols", built: true, icon: <><circle cx="8" cy="8" r="5.8"></circle><path d="M8 4.6v6.8M6.2 6.2h2.6a1.3 1.3 0 0 1 0 2.6H6.2h2.6a1.3 1.3 0 0 1 0 2.6H6.2"></path></> },

@@ -1,6 +1,7 @@
 import type { BybitClient } from '../bybit/bybitClient.ts';
 import type { BotDatabase } from '../db/database.ts';
 import { DEFAULT_PUMP_SHORT, findPumpWave, isPumpShortEntryEligible, pumpShortEntryTarget } from './pumpShort.ts';
+import { findDump, type DumpCandidate } from './dumpBuy.ts';
 
 export interface PumpCandidate {
   symbol: string;
@@ -16,11 +17,13 @@ export interface PumpCandidate {
 export class PumpShortScanner {
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
+  private pendingRescan = false;
   private checked = 0;
   private total = 0;
   private error: string | null = null;
   private lastCompletedAt: number | null = null;
   private candidates: PumpCandidate[] = [];
+  private dumpCandidates: DumpCandidate[] = [];
 
   constructor(private client: BybitClient, private db: BotDatabase) {}
 
@@ -37,20 +40,31 @@ export class PumpShortScanner {
       error: this.error, lastCompletedAt: this.lastCompletedAt, candidates: this.candidates };
   }
 
+  public dumpSnapshot() {
+    const settings = this.db.getSettings().dumpBuy || { minDropPct: 60, lookbackDays: 10 };
+    return { running: this.running, checked: this.checked, total: this.total, error: this.error,
+      lastCompletedAt: this.lastCompletedAt, settings, candidates: this.dumpCandidates.filter(c => c.dropPct >= settings.minDropPct) };
+  }
+
   public async scan(): Promise<void> {
-    if (this.running) return;
-    this.running = true; this.error = null; this.checked = 0; this.total = 0; this.candidates = [];
+    if (this.running) { this.pendingRescan = true; return; }
+    this.running = true; this.error = null; this.checked = 0; this.total = 0;
     try {
       const settings = this.db.getSettings().pumpShort || { ...DEFAULT_PUMP_SHORT, positionNotionalUsdt: 30 };
+      const dump = this.db.getSettings().dumpBuy || { minDropPct: 60, lookbackDays: 10 };
+      const windowDays = Math.max(settings.lookbackDays, dump.lookbackDays);
       const instruments = await this.client.getInstrumentsInfo();
       const tickers = await this.client.getTickers();
       // If exchange position sync fails, do not present symbols as eligible.
       const exchangePositions = await this.client.getPositions();
       const shorts = new Set(exchangePositions.filter(p => p.side === 'Sell' && Number(p.size) > 0).map(p => p.symbol));
+      const buys = new Set(exchangePositions.filter(p => p.side === 'Buy' && Number(p.size) > 0).map(p => p.symbol));
       for (const p of this.db.getPositions()) {
         if (p.side === 'Sell' && p.size > 0 && !p.missingOnExchangeSince) shorts.add(p.symbol);
+        if (p.side === 'Buy' && p.size > 0 && !p.missingOnExchangeSince) buys.add(p.symbol);
       }
       const symbols = Object.keys(instruments).filter(s => s.endsWith('USDT')).sort();
+      const pumpResults: PumpCandidate[] = [], dumpResults: DumpCandidate[] = [];
       this.total = symbols.length;
       let next = 0;
       const worker = async () => {
@@ -59,23 +73,27 @@ export class PumpShortScanner {
           try {
             // Hourly candles cover every duration from one hour up to the configured days.
             // Bybit limits kline requests to 1000 rows: use daily candles only for longer windows.
-            const hourly = settings.lookbackDays <= 40;
-            const candles = await this.client.getKlines(symbol, hourly ? '60' : 'D', hourly ? settings.lookbackDays * 24 + 2 : settings.lookbackDays + 2);
+            const hourly = windowDays <= 40;
+            const candles = await this.client.getKlines(symbol, hourly ? '60' : 'D', hourly ? windowDays * 24 + 2 : windowDays + 2);
             const wave = findPumpWave(candles, Date.now(), settings);
             const lastPrice = tickers[symbol]?.lastPrice || 0;
             if (wave && isPumpShortEntryEligible(wave, lastPrice)) {
-              this.candidates.push({ symbol, low: wave.low, high: wave.high,
+              pumpResults.push({ symbol, low: wave.low, high: wave.high,
                 growthPct: wave.growthPct, retracementTarget: pumpShortEntryTarget(lastPrice, wave.low, settings.retracementPct),
                 lastPrice, excludedShort: shorts.has(symbol) });
             }
+            const drawdown = findDump(candles, Date.now(), dump.lookbackDays, dump.minDropPct, lastPrice);
+            if (drawdown) dumpResults.push({ symbol, lastPrice, peak: drawdown.peak, trough: drawdown.trough,
+              peakAt: drawdown.peakAt, dropPct: drawdown.dropPct, excludedBuy: buys.has(symbol) });
           } catch { /* One unavailable market must not abort the other scans. */ }
           this.checked++;
         }
       };
       await Promise.all(Array.from({ length: 4 }, () => worker()));
-      this.candidates.sort((a, b) => b.growthPct - a.growthPct);
+      this.candidates = pumpResults.sort((a, b) => b.growthPct - a.growthPct);
+      this.dumpCandidates = dumpResults.sort((a, b) => b.dropPct - a.dropPct);
       this.lastCompletedAt = Date.now();
     } catch (e: any) { this.error = e.message || 'Scan failed'; }
-    finally { this.running = false; }
+    finally { this.running = false; if (this.pendingRescan) { this.pendingRescan = false; setImmediate(() => void this.scan()); } }
   }
 }
