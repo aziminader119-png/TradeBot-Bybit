@@ -1,7 +1,7 @@
 import type {BotStateSummary} from '../../types/trading.ts';
 import {tradeRecords} from '../light/positionData.ts';
 export type EventKind='BUY_OPEN'|'BUY_CLOSE'|'SHORT_OPEN'|'SHORT_CLOSE';
-export type TradeEvent={id:string;kind:EventKind;symbol:string;side:'Buy'|'Sell';verb:string;qty:number;price:number;pnl:number|null;time:number;orderId:string};
+export type TradeEvent={id:string;kind:EventKind;source:'pump'|'dump'|'general';symbol:string;side:'Buy'|'Sell';verb:string;qty:number;price:number;pnl:number|null;time:number;orderId:string};
 const opens=new Set(['OPEN_INITIAL','TP_REOPEN','MANUAL_OPEN','MART_ADD']);
 const closes=new Set(['TP_CLOSE','CYCLE_CLOSE','MANUAL_CLOSE']);
 export function executionEvents(state:BotStateSummary):TradeEvent[]{
@@ -10,7 +10,9 @@ export function executionEvents(state:BotStateSummary):TradeEvent[]{
   const opening=opens.has(t.action),closing=closes.has(t.action);
   if(t.mode!=='LIVE'||(!opening&&!closing)||!['Buy','Sell'].includes(t.side)||!t.orderId||!Number.isFinite(t.timestamp)||t.timestamp<=0||!Number.isFinite(t.qty)||t.qty<=0||!Number.isFinite(t.price)||t.price<=0)continue;
   const id=t.orderId+':'+t.action;
-  unique.set(id,{id,kind:((t.side==='Buy'?'BUY':'SHORT')+(opening?'_OPEN':'_CLOSE')) as EventKind,symbol:t.symbol,side:t.side,verb:t.action==='MART_ADD'?'Increased':opening?'Opened':'Closed',qty:t.qty,price:t.price,pnl:closing&&Number.isFinite(t.pnl)?t.pnl:null,time:t.timestamp,orderId:t.orderId});
+  const sourceText=`${t.cycleId} ${t.notes||''}`.toLowerCase();
+  const source=sourceText.includes('pump')?'pump':sourceText.includes('dump')?'dump':'general';
+  unique.set(id,{id,source,kind:((t.side==='Buy'?'BUY':'SHORT')+(opening?'_OPEN':'_CLOSE')) as EventKind,symbol:t.symbol,side:t.side,verb:t.action==='MART_ADD'?'Increased':opening?'Opened':'Closed',qty:t.qty,price:t.price,pnl:closing&&Number.isFinite(t.pnl)?t.pnl:null,time:t.timestamp,orderId:t.orderId});
  }
  return [...unique.values()].sort((a,b)=>a.time-b.time||a.id.localeCompare(b.id));
 }

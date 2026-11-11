@@ -1084,6 +1084,10 @@ export class TradingEngine {
       }
 
       this.db.updatePositions(reconciledPositions);
+      // Publish a successful live-position snapshot immediately. Closed-PnL history is
+      // best-effort and must never delay the position freshness indicator.
+      this.connection.positionsSyncedAt = Date.now();
+      this.connection.positionsCount = activeLiveList.length;
 
       // Sync real Bybit closed PnL history into database trades
       try {
@@ -1115,8 +1119,6 @@ export class TradingEngine {
       // Phase 1: pruneStaleData() is no longer called here; it deleted cycles and symbol settings
       // without archiving them. Records are preserved.
 
-      this.connection.positionsSyncedAt = Date.now();
-      this.connection.positionsCount = activeLiveList.length;
       return { success: true, count: reconciledPositions.length, positions: reconciledPositions };
     } catch (err: any) {
       console.warn('[Engine] syncBybitPositions error:', err.message);

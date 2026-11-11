@@ -9,6 +9,12 @@
 .trade-alert-sound-grid>label{display:flex;flex-direction:column;gap:8px;min-width:0}
 .trade-alert-sound-grid>label>div{display:flex;gap:6px}
 .trade-alert-sound-grid select{min-width:0;flex:1;background:#15151b;border:1px solid #34343c;color:#fafafa;height:34px;padding:5px 8px;font-size:12px}
+.trade-alert-group{margin:18px 0 22px}
+.trade-alert-group h4{font-size:13px;color:#bbc1cc;font-weight:600;margin:0 0 12px;padding-bottom:7px;border-bottom:1px solid #30333a}
+.trade-alert-tone{display:flex;flex-direction:column;gap:8px;min-width:0}
+.trade-alert-tone-name{display:flex;align-items:center;gap:7px;font-weight:600;color:#e9ebef}
+.trade-alert-tone-control{display:flex;gap:6px;min-width:0}
+.trade-alert-tone-control button{min-width:36px}
 .trade-alert-save{display:flex;align-items:center;gap:14px;margin-top:18px}
 .trade-alert-save>label{display:flex;gap:12px;align-items:center;margin-right:auto;color:#adb1b8}
 .page-dashboard .trade-alert-settings input[type=range]{height:auto;max-width:140px;padding:0;border:0;accent-color:#3d6bff}

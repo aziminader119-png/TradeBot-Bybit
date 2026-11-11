@@ -14,7 +14,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "bash tests/run-tests.sh",
+    "test": "node --import tsx --test tests/*.test.mts",
     "test:browser": "node tests/browser/symbol-navigation.browser.mjs && node tests/browser/symbol-chart.browser.mjs && node tests/browser/features.browser.mjs",
     "verify:frontend-update": "node tests/frontend-update.verify.mjs",
     "bybit:check": "tsx scripts/bybit-check.ts"

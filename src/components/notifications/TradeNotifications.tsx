@@ -9,11 +9,19 @@ import {symbolPath} from '../light/navigation.ts';
 const alertHref=(e:AlertEvent)=>symbolPath(e.symbol)+'?alert='+encodeURIComponent(e.id);
 const alertText=(e:AlertEvent)=>`${e.indicator} · ${timeframeLabel(e.timeframe)} · ${e.conditionLabel}${e.mode==='intrabar'?' (intrabar)':''}${e.positionSide?` · ${e.positionOwner==='bot'?'BOT':'External'} ${e.positionSide==='Buy'?'BUY':'SELL'}`:''}`;
 import {EVENT_NAMES,EventKind,TradeEvent,TradeEventCursor} from './tradeEvents.ts';
-type Settings={text:boolean;sound:boolean;volume:number;sounds:Record<EventKind,string>};
+const INDICATOR_KINDS=['EMA','SMA','RSI','MACD','BB','ADX','ATR','SAR','VOL','VWAP','PRICE'] as const;
+const EXTRA_KINDS=['PUMP_SHORT_OPEN','PUMP_SHORT_CLOSE','DUMP_BUY_OPEN','DUMP_BUY_CLOSE','SMART_MART'] as const;
+type AlertKind=EventKind|typeof INDICATOR_KINDS[number]|typeof EXTRA_KINDS[number];
+const ALERT_LABELS:Record<AlertKind,string>={...EVENT_NAMES,PUMP_SHORT_OPEN:'Pump SHORT opened',PUMP_SHORT_CLOSE:'Pump SHORT closed',DUMP_BUY_OPEN:'Dump BUY opened',DUMP_BUY_CLOSE:'Dump BUY closed',SMART_MART:'Smart MART alert',EMA:'EMA indicator',SMA:'SMA indicator',RSI:'RSI indicator',MACD:'MACD indicator',BB:'Bollinger Bands',ADX:'ADX indicator',ATR:'ATR indicator',SAR:'Parabolic SAR',VOL:'Volume indicator',VWAP:'VWAP indicator',PRICE:'Price alert'};
+const ALERT_KINDS=Object.keys(ALERT_LABELS) as AlertKind[];
+type Tone={sound:string;voice:string;enabled:boolean};
+type Settings={text:boolean;sound:boolean;voice:boolean;volume:number;sounds:Record<EventKind,string>;tones:Record<AlertKind,Tone>};
 const KEY='tradebot:trade-alerts:v1';
-const defaults:Settings={text:true,sound:true,volume:.6,sounds:{BUY_OPEN:'apple-ringtone-1',BUY_CLOSE:'apple-ringtone-2',SHORT_OPEN:'apple-ringtone-3',SHORT_CLOSE:'apple-ringtone-4'}};
-function readSettings():Settings{try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(!s)return defaults;const sounds={...defaults.sounds};for(const k of Object.keys(sounds) as EventKind[])if(SOUNDS.some(x=>x.id===s.sounds?.[k]))sounds[k]=s.sounds[k];return {text:s.text!==false,sound:s.sound!==false,volume:typeof s.volume==='number'&&Number.isFinite(s.volume)?Math.max(0,Math.min(1,s.volume)):.6,sounds};}catch{return defaults;}}
-type Context={settings:Settings;save:(s:Settings)=>void;ready:boolean;preview:(id:string,volume?:number)=>void;mute:()=>void;error:string;history:TradeEvent[];unread:number;markRead:()=>void;alerts:AlertEvent[]};
+const defaultSounds:Record<EventKind,string>={BUY_OPEN:'apple-ringtone-1',BUY_CLOSE:'apple-ringtone-2',SHORT_OPEN:'apple-ringtone-3',SHORT_CLOSE:'apple-ringtone-4'};
+const defaultTones=()=>Object.fromEntries(ALERT_KINDS.map((kind,i)=>[kind,{sound:defaultSounds[kind as EventKind]||SOUNDS[i%SOUNDS.length].id,voice:'default',enabled:true}])) as Record<AlertKind,Tone>;
+const defaults:Settings={text:true,sound:true,voice:true,volume:.6,sounds:defaultSounds,tones:defaultTones()};
+function readSettings():Settings{try{const s=JSON.parse(localStorage.getItem(KEY)||'null');if(!s)return defaults;const sounds={...defaultSounds};for(const k of Object.keys(sounds) as EventKind[])if(SOUNDS.some(x=>x.id===s.sounds?.[k]))sounds[k]=s.sounds[k];const tones=defaultTones();for(const kind of ALERT_KINDS){const old=s.tones?.[kind];tones[kind]={sound:SOUNDS.some(x=>x.id===old?.sound)?old.sound:(sounds[kind as EventKind]||tones[kind].sound),voice:typeof old?.voice==='string'?old.voice:'default',enabled:old?.enabled!==false};}return {text:s.text!==false,sound:s.sound!==false,voice:s.voice!==false,volume:typeof s.volume==='number'&&Number.isFinite(s.volume)?Math.max(0,Math.min(1,s.volume)):.6,sounds,tones};}catch{return defaults;}}
+type Context={settings:Settings;save:(s:Settings)=>void;ready:boolean;preview:(id:string,volume?:number)=>void;previewVoice:(kind:AlertKind,voice:string)=>void;mute:()=>void;error:string;history:TradeEvent[];unread:number;markRead:()=>void;alerts:AlertEvent[]};
 const Alerts=createContext<Context|null>(null);
 const amount=(n:number)=>n.toLocaleString('en-US',{maximumFractionDigits:8});
 export function TradeNotifications({state,children}:{state:BotStateSummary|null;children:React.ReactNode}){
@@ -22,6 +30,15 @@ export function TradeNotifications({state,children}:{state:BotStateSummary|null;
  const visibleToasts=useRef<(TradeEvent&{expires:number})[]>([]);
  const cursor=useRef(new TradeEventCursor()),current=useRef(settings),armed=useRef(false),player=useRef<HTMLAudioElement|null>(null),queue=useRef<string[]>([]),playing=useRef(false),audioRun=useRef(0),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined),alive=useRef(true);current.current=settings;
  const stop=()=>{audioRun.current++;clearTimeout(timer.current);if(player.current){player.current.pause();player.current.onended=null;player.current.onerror=null;}playing.current=false;};
+ const speak=(message:string,kind:AlertKind,force=false)=>{
+  if((!force&&(!armed.current||!current.current.sound||!current.current.voice||!current.current.tones[kind].enabled))||!('speechSynthesis' in window))return;
+  const utterance=new SpeechSynthesisUtterance(message);
+  utterance.lang='en-US';utterance.rate=.92;utterance.volume=current.current.volume;
+  const voices=window.speechSynthesis.getVoices();const voiceName=current.current.tones[kind].voice;
+  utterance.voice=voices.find(v=>v.voiceURI===voiceName)||voices.find(v=>v.lang.startsWith('en')&&/natural|google|microsoft/i.test(v.name))||voices.find(v=>v.lang.startsWith('en'))||null;
+  window.speechSynthesis.speak(utterance);
+ };
+ const tradeKind=(e:TradeEvent):AlertKind=>e.source==='pump'&&e.side==='Sell'?(e.kind==='SHORT_CLOSE'?'PUMP_SHORT_CLOSE':'PUMP_SHORT_OPEN'):e.source==='dump'&&e.side==='Buy'?(e.kind==='BUY_CLOSE'?'DUMP_BUY_CLOSE':'DUMP_BUY_OPEN'):e.kind;
  const next=()=>{if(!alive.current||!armed.current||!current.current.sound||playing.current)return;const id=queue.current.shift();if(!id)return;const track=SOUNDS.find(s=>s.id===id);if(!track){next();return;}
   const audio=player.current||(player.current=new Audio());playing.current=true;audio.src=track.url;audio.volume=current.current.volume;
   const run=audioRun.current;const done=()=>{if(run!==audioRun.current)return;stop();next();};audio.onended=done;audio.onerror=()=>{setError('Sound could not be loaded.');done();};
@@ -30,29 +47,77 @@ export function TradeNotifications({state,children}:{state:BotStateSummary|null;
  const enqueue=async(e:TradeEvent)=>{
   if(!armed.current||!current.current.sound)return;
   // Coordinate sounds across already-unlocked tabs. This only stores an execution ID, never credentials.
-  const claim=()=>{if(!armed.current||!alive.current)return;if(!current.current.sound)return;const key='tradebot:played:'+e.id;try{if(localStorage.getItem(key))return;localStorage.setItem(key,String(Date.now()));}catch{}queue.current.push(current.current.sounds[e.kind]);next();};
+  const claim=()=>{if(!armed.current||!alive.current)return;if(!current.current.sound)return;const key='tradebot:played:'+e.id;try{if(localStorage.getItem(key))return;localStorage.setItem(key,String(Date.now()));}catch{}const kind=tradeKind(e);if(!current.current.tones[kind].enabled)return;queue.current.push(current.current.tones[kind].sound);next();setTimeout(()=>{if(alive.current)speak(`${ALERT_LABELS[kind]} for ${e.symbol}. Quantity ${e.qty}. Price ${e.price}.${e.pnl===null?'':` Realized P and L ${e.pnl} USDT.`}`,kind);},2200);};
+  try{if(navigator.locks)await navigator.locks.request('tradebot-audio-claim',claim);else claim();}catch{claim();}
+ };
+ const enqueueIndicator=async(e:AlertEvent)=>{
+  if(!armed.current||!current.current.sound)return;
+  const claim=()=>{
+   if(!armed.current||!alive.current||!current.current.sound)return;
+   const key='tradebot:played:indicator:'+e.id;
+   try{if(localStorage.getItem(key))return;localStorage.setItem(key,String(Date.now()));}catch{}
+   const kind:AlertKind=e.positionId?'SMART_MART':e.indicator as AlertKind;
+   if(!current.current.tones[kind]?.enabled)return;
+   queue.current.push(current.current.tones[kind].sound);next();
+   setTimeout(()=>{if(alive.current)speak(`${ALERT_LABELS[kind]} for ${e.symbol}. ${timeframeLabel(e.timeframe)} timeframe. ${e.conditionLabel}. Price ${e.price}.`,kind);},2200);
+  };
   try{if(navigator.locks)await navigator.locks.request('tradebot-audio-claim',claim);else claim();}catch{claim();}
  };
  const pumpToasts=()=>{const visible=visibleToasts.current.filter(e=>e.expires>Date.now());const updated=[...visible,...pendingToasts.current.splice(0,Math.max(0,4-visible.length)).map(e=>({...e,expires:Date.now()+12000}))];visibleToasts.current=updated;setToasts(updated);};
  useEffect(()=>{alive.current=true;const tick=setInterval(pumpToasts,1000);return()=>{alive.current=false;clearInterval(tick);armed.current=false;queue.current=[];stop();};},[]);
+ // Browsers revoke autoplay permission on reload. Keep the saved preference and
+ // re-unlock silently on the first user interaction, without playing a ringtone.
+ useEffect(()=>{
+  let pending=false;
+  const unlock=()=>{
+   if(armed.current||pending||!current.current.sound)return;
+   pending=true;
+   const sound=SOUNDS.find(s=>s.id===current.current.sounds.BUY_OPEN);
+   if(!sound){pending=false;return;}
+   const audio=player.current||(player.current=new Audio());
+   audio.src=sound.url;audio.muted=true;
+   void audio.play().then(()=>{
+    audio.pause();audio.currentTime=0;audio.muted=false;
+    if(alive.current&&current.current.sound){armed.current=true;setReady(true);setError('');next();}
+   }).catch(()=>{audio.muted=false;}).finally(()=>{pending=false;});
+  };
+  document.addEventListener('pointerdown',unlock,{capture:true});
+  document.addEventListener('keydown',unlock,{capture:true});
+  return()=>{document.removeEventListener('pointerdown',unlock,true);document.removeEventListener('keydown',unlock,true);};
+ },[]);
  // indicator / Smart MART alerts from the live snapshot (server-side evaluator): first snapshot = baseline, no replay
  const alertSeen=useRef<Set<string>|null>(null),[alertToasts,setAlertToasts]=useState<(AlertEvent&{expires:number})[]>([]);
  const latestAlerts=state?.indicatorAlerts?.latest||[];
  useEffect(()=>{const list=state?.indicatorAlerts?.latest;if(!list)return;if(!alertSeen.current){alertSeen.current=new Set(list.map(e=>e.id));return;}
   const fresh=list.filter(e=>!alertSeen.current!.has(e.id));for(const e of list)alertSeen.current.add(e.id);if(alertSeen.current.size>2000)alertSeen.current=new Set(list.map(e=>e.id));
-  if(!fresh.length)return;setUnread(n=>n+fresh.length);if(current.current.text)setAlertToasts(t=>[...fresh.map(e=>({...e,expires:Date.now()+15000})),...t].slice(0,4));},[state?.indicatorAlerts]);
+  if(!fresh.length)return;setUnread(n=>n+fresh.length);if(current.current.text)setAlertToasts(t=>[...fresh.map(e=>({...e,expires:Date.now()+15000})),...t].slice(0,4));for(const e of fresh)void enqueueIndicator(e);},[state?.indicatorAlerts]);
  useEffect(()=>{if(!alertToasts.length)return;const t=setTimeout(()=>setAlertToasts(x=>x.filter(e=>e.expires>Date.now())),1000);return()=>clearTimeout(t);},[alertToasts]);
  useEffect(()=>{if(!state)return;const fresh=cursor.current.ingest(state);if(!fresh.length)return;setUnread(n=>n+fresh.length);setHistory(h=>[...fresh.slice().reverse(),...h].slice(0,50));if(current.current.text){pendingToasts.current.push(...fresh);pumpToasts();}for(const e of fresh)void enqueue(e);},[state]);
- const save=(s:Settings)=>{current.current=s;setSettings(s);try{localStorage.setItem(KEY,JSON.stringify(s));}catch{setError('Browser storage is unavailable. Settings apply until this page closes.');}if(!s.sound){queue.current=[];stop();}if(!s.text){pendingToasts.current=[];visibleToasts.current=[];setToasts([]);}};
+ const save=(s:Settings)=>{current.current=s;setSettings(s);try{localStorage.setItem(KEY,JSON.stringify(s));}catch{setError('Browser storage is unavailable. Settings apply until this page closes.');}if(!s.sound){queue.current=[];stop();window.speechSynthesis?.cancel();}if(!s.text){pendingToasts.current=[];visibleToasts.current=[];setToasts([]);}};
  const preview=(id:string,volume?:number)=>{const track=SOUNDS.find(s=>s.id===id);if(!track)return;queue.current=[];stop();const audio=player.current||(player.current=new Audio());audio.src=track.url;audio.volume=volume??current.current.volume;playing.current=true;const run=audioRun.current;setError('');audio.onended=()=>{if(run!==audioRun.current)return;stop();next();};audio.onerror=()=>{stop();setError('Sound could not be loaded.');};audio.play().then(()=>{if(run!==audioRun.current||!alive.current)return;armed.current=true;setReady(true);timer.current=setTimeout(()=>{stop();next();},2000);}).catch(()=>{if(run!==audioRun.current||!alive.current)return;stop();setReady(false);setError('Browser audio is blocked. Click Enable Sound again.');});};
- const mute=()=>{armed.current=false;setReady(false);queue.current=[];stop();};
- return <Alerts.Provider value={{settings,save,ready,preview,mute,error,history,unread,markRead:()=>setUnread(0),alerts:latestAlerts}}>{children}<aside className="trade-toast-stack" aria-live="polite" aria-label="Trade notifications">{alertToasts.map(e=><article className="trade-toast is-alert" key={'a:'+e.id}><button type="button" className="trade-toast-dismiss" aria-label="Dismiss notification" onClick={()=>setAlertToasts(t=>t.filter(x=>x.id!==e.id))}>×</button><strong>{e.positionId?'Smart MART alert':'Indicator alert'}</strong><a className="symbol-link" href={alertHref(e)} target="_blank" rel="noopener noreferrer">{e.symbol}</a><span>{alertText(e)}</span><span>Price {amount(e.price)} · notification only</span><small><DateTime ts={e.candleTime*1000}/></small></article>)}{toasts.map(e=><article className={'trade-toast '+(e.side==='Buy'?'is-buy':'is-short')} key={e.id}><button type="button" className="trade-toast-dismiss" aria-label="Dismiss notification" onClick={()=>{visibleToasts.current=visibleToasts.current.filter(x=>x.id!==e.id);pumpToasts();}}>×</button><strong>{e.side==='Buy'?'BUY':'SHORT'} {e.verb}</strong><SymbolLink symbol={e.symbol}>{e.symbol}</SymbolLink><span>Qty {amount(e.qty)} · Price {amount(e.price)}</span>{e.pnl!==null&&<span className={e.pnl<0?'red':'green'}>Realized P&amp;L {e.pnl>0?'+':''}{amount(e.pnl)} USDT</span>}<small><DateTime ts={e.time}/></small></article>)}</aside></Alerts.Provider>;
+ const previewVoice=(kind:AlertKind,voice:string)=>{if(!('speechSynthesis' in window))return;window.speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(`${ALERT_LABELS[kind]}. Bitcoin U S D T. Price 100 dollars.`);u.lang='en-US';u.volume=current.current.volume;u.rate=.92;u.voice=window.speechSynthesis.getVoices().find(v=>v.voiceURI===voice)||null;window.speechSynthesis.speak(u);};
+ const mute=()=>{save({...current.current,sound:false});armed.current=false;setReady(false);queue.current=[];stop();};
+ return <Alerts.Provider value={{settings,save,ready,preview,previewVoice,mute,error,history,unread,markRead:()=>setUnread(0),alerts:latestAlerts}}>{children}<aside className="trade-toast-stack" aria-live="polite" aria-label="Trade notifications">{alertToasts.map(e=><article className="trade-toast is-alert" key={'a:'+e.id}><button type="button" className="trade-toast-dismiss" aria-label="Dismiss notification" onClick={()=>setAlertToasts(t=>t.filter(x=>x.id!==e.id))}>×</button><strong>{e.positionId?'Smart MART alert':'Indicator alert'}</strong><a className="symbol-link" href={alertHref(e)} target="_blank" rel="noopener noreferrer">{e.symbol}</a><span>{alertText(e)}</span><span>Price {amount(e.price)} · notification only</span><small><DateTime ts={e.candleTime*1000}/></small></article>)}{toasts.map(e=><article className={'trade-toast '+(e.side==='Buy'?'is-buy':'is-short')} key={e.id}><button type="button" className="trade-toast-dismiss" aria-label="Dismiss notification" onClick={()=>{visibleToasts.current=visibleToasts.current.filter(x=>x.id!==e.id);pumpToasts();}}>×</button><strong>{e.side==='Buy'?'BUY':'SHORT'} {e.verb}</strong><SymbolLink symbol={e.symbol}>{e.symbol}</SymbolLink><span>Qty {amount(e.qty)} · Price {amount(e.price)}</span>{e.pnl!==null&&<span className={e.pnl<0?'red':'green'}>Realized P&amp;L {e.pnl>0?'+':''}{amount(e.pnl)} USDT</span>}<small><DateTime ts={e.time}/></small></article>)}</aside></Alerts.Provider>;
 }
 export function TradeAlertSettings(){const c=useContext(Alerts);if(!c)return null;return <TradeAlertForm context={c}/>;}
 function TradeAlertForm({context:c}:{context:Context}){
  const [draft,setDraft]=useState(c.settings),[saved,setSaved]=useState(false);
+ const [voices,setVoices]=useState<SpeechSynthesisVoice[]>([]);
+ useEffect(()=>{if(!('speechSynthesis' in window))return;const refresh=()=>setVoices(window.speechSynthesis.getVoices());refresh();window.speechSynthesis.addEventListener('voiceschanged',refresh);return()=>window.speechSynthesis.removeEventListener('voiceschanged',refresh);},[]);
  const update=(s:Settings)=>{setDraft(s);setSaved(false);};
- return <fieldset className="trade-alert-settings"><legend>Trade Alerts</legend><div className="trade-alert-switches"><label><input type="checkbox" checked={draft.text} onChange={e=>update({...draft,text:e.target.checked})}/>Text notifications</label><label><input type="checkbox" checked={draft.sound} onChange={e=>update({...draft,sound:e.target.checked})}/>Sound</label><button type="button" onClick={()=>c.ready?c.mute():c.preview(draft.sounds.BUY_OPEN,draft.volume)}>{c.ready?'Mute Sound':'Enable Sound'}</button><span className={c.ready?'green':''}>{c.ready?'Sound ready':'Click to enable audio'}</span></div><div className="trade-alert-sound-grid">{(Object.keys(EVENT_NAMES) as EventKind[]).map(k=><label key={k}><span className={k.startsWith('BUY')?'green':'red'}>{EVENT_NAMES[k]}</span><div><select aria-label={EVENT_NAMES[k]+' sound'} value={draft.sounds[k]} onChange={e=>update({...draft,sounds:{...draft.sounds,[k]:e.target.value}})}>{SOUNDS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button type="button" title="Preview sound" aria-label={'Preview '+EVENT_NAMES[k]} onClick={()=>c.preview(draft.sounds[k],draft.volume)}>▶</button></div></label>)}</div><div className="trade-alert-save"><label>Volume <input aria-label="Alert volume" type="range" min="0" max="100" value={Math.round(draft.volume*100)} onChange={e=>update({...draft,volume:Number(e.target.value)/100})}/>{Math.round(draft.volume*100)}%</label><button type="button" onClick={()=>{c.save(draft);setSaved(true);}}>Save</button>{saved&&<span className="green">Saved</span>}</div>{c.error&&<p className="red" role="status">{c.error}</p>}<small className="trade-alert-note">This browser · sounds play while an enabled tab is open</small>{c.history.length>0&&<details className="trade-alert-history"><summary>Recent trade notifications ({c.history.length})</summary>{c.history.map(e=><div key={e.id}><span className={e.side==='Buy'?'green':'red'}>{e.side==='Buy'?'BUY':'SHORT'} {e.verb}</span><SymbolLink symbol={e.symbol}>{e.symbol}</SymbolLink><span>{amount(e.qty)} @ {amount(e.price)}</span><DateTime ts={e.time}/></div>)}</details>}</fieldset>;
+ const changeTone=(kind:AlertKind,part:Partial<Tone>)=>update({...draft,tones:{...draft.tones,[kind]:{...draft.tones[kind],...part}}});
+ const groups:[string,AlertKind[]][]=[['Positions',['BUY_OPEN','BUY_CLOSE','SHORT_OPEN','SHORT_CLOSE']],['Pump & Dump',['PUMP_SHORT_OPEN','PUMP_SHORT_CLOSE','DUMP_BUY_OPEN','DUMP_BUY_CLOSE']],['Indicators',[...INDICATOR_KINDS]],['Other',['SMART_MART']]];
+ return <fieldset className="trade-alert-settings"><legend>Trade Alerts</legend>
+  <div className="trade-alert-switches"><label><input type="checkbox" checked={draft.text} onChange={e=>update({...draft,text:e.target.checked})}/>Text notifications</label><label><input type="checkbox" checked={draft.sound} onChange={e=>update({...draft,sound:e.target.checked})}/>Sound</label><label><input type="checkbox" checked={draft.voice} onChange={e=>update({...draft,voice:e.target.checked})}/>Spoken alerts</label><button type="button" onClick={()=>c.ready?c.mute():c.preview(draft.tones.BUY_OPEN.sound,draft.volume)}>{c.ready?'Mute Sound':'Enable Sound'}</button><span className={c.ready?'green':''}>{c.ready?'Sound ready':'Click to enable audio'}</span></div>
+  {groups.map(([group,kinds])=><section className="trade-alert-group" key={group}><h4>{group}</h4><div className="trade-alert-sound-grid">{kinds.map(kind=><div className="trade-alert-tone" key={kind}>
+   <label className="trade-alert-tone-name"><input aria-label={'Enable '+ALERT_LABELS[kind]} type="checkbox" checked={draft.tones[kind].enabled} onChange={e=>changeTone(kind,{enabled:e.target.checked})}/>{ALERT_LABELS[kind]}</label>
+   <div className="trade-alert-tone-control"><select aria-label={ALERT_LABELS[kind]+' ringtone'} value={draft.tones[kind].sound} onChange={e=>changeTone(kind,{sound:e.target.value})}>{SOUNDS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button type="button" title="Preview ringtone" onClick={()=>c.preview(draft.tones[kind].sound,draft.volume)}>▶</button></div>
+   <div className="trade-alert-tone-control"><select aria-label={ALERT_LABELS[kind]+' voice'} value={draft.tones[kind].voice} onChange={e=>changeTone(kind,{voice:e.target.value})}><option value="default">Default English voice</option>{voices.filter(v=>v.lang.startsWith('en')).map(v=><option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}</select><button type="button" title="Preview spoken alert" onClick={()=>c.previewVoice(kind,draft.tones[kind].voice)}>🗣</button></div>
+  </div>)}</div></section>)}
+  <div className="trade-alert-save"><label>Volume <input aria-label="Alert volume" type="range" min="0" max="100" value={Math.round(draft.volume*100)} onChange={e=>update({...draft,volume:Number(e.target.value)/100})}/>{Math.round(draft.volume*100)}%</label><button type="button" onClick={()=>{c.save(draft);setSaved(true);}}>Save</button>{saved&&<span className="green">Saved</span>}</div>
+  {c.error&&<p className="red" role="status">{c.error}</p>}<small className="trade-alert-note">Saved per browser · voices depend on installed browser/system voices · an interaction is required after reload</small>
+  {c.history.length>0&&<details className="trade-alert-history"><summary>Recent trade notifications ({c.history.length})</summary>{c.history.map(e=><div key={e.id}><span className={e.side==='Buy'?'green':'red'}>{e.side==='Buy'?'BUY':'SHORT'} {e.verb}</span><SymbolLink symbol={e.symbol}>{e.symbol}</SymbolLink><span>{amount(e.qty)} @ {amount(e.price)}</span><DateTime ts={e.time}/></div>)}</details>}
+ </fieldset>;
 }
 
 
