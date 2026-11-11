@@ -49,10 +49,10 @@ export function TradeNotifications({state,children}:{state:BotStateSummary|null;
  };
  const stop=()=>{audioRun.current++;clearTimeout(timer.current);if(player.current){player.current.pause();player.current.onended=null;player.current.onerror=null;}playing.current=false;};
  const speak=(message:string,kind:AlertKind,force=false)=>{
-  if(!force&&(!armed.current||!current.current.sound||!current.current.voice||!current.current.tones[kind].enabled))return;
+  if(!force&&(!current.current.sound||!current.current.voice||!current.current.tones[kind].enabled))return;
   const voiceName=current.current.tones[kind].voice;
   if(voiceName.startsWith('cloud:')){void playCloud(message,voiceName);return;}
-  if(!('speechSynthesis' in window))return;
+  if(!armed.current||!('speechSynthesis' in window))return;
   const utterance=new SpeechSynthesisUtterance(message);
   const language=current.current.tones[kind].language;utterance.lang=language==='fa'?'fa-IR':'en-US';utterance.rate=.98;utterance.volume=current.current.volume;
   const voices=window.speechSynthesis.getVoices();setSpeechProfile(utterance,voiceName);
@@ -66,24 +66,33 @@ export function TradeNotifications({state,children}:{state:BotStateSummary|null;
   audio.play().then(()=>{if(run!==audioRun.current)return;if(alive.current)timer.current=setTimeout(done,2000);else audio.pause();}).catch(()=>{if(run!==audioRun.current||!alive.current)return;stop();armed.current=false;queue.current=[];setReady(false);setError('Click Enable Sound to allow browser audio.');});
  };
  const enqueue=async(e:TradeEvent)=>{
-  if(!armed.current||!current.current.sound)return;
+  if(!current.current.sound)return;
   // Coordinate sounds across already-unlocked tabs. This only stores an execution ID, never credentials.
-  const claim=()=>{if(!armed.current||!alive.current)return;if(!current.current.sound)return;const key='tradebot:played:'+e.id;try{if(localStorage.getItem(key))return;localStorage.setItem(key,String(Date.now()));}catch{}const kind=tradeKind(e);if(!current.current.tones[kind].enabled)return;queue.current.push(current.current.tones[kind].sound);next();setTimeout(()=>{if(alive.current){const fa=current.current.tones[kind].language==='fa';speak(fa?`${PERSIAN_LABELS[kind]}، ارز ${faSymbol(e.symbol)}، تعداد ${e.qty}، قیمت ${e.price}.${e.pnl===null?'':` سود و زیان تحقق‌یافته ${e.pnl} تتر.`}`:`${ALERT_LABELS[kind]} for ${e.symbol}. Quantity ${e.qty}. Price ${e.price}.${e.pnl===null?'':` Realized P and L ${e.pnl} USDT.`}`,kind);}},2200);};
+  const claim=()=>{if(!alive.current||!current.current.sound)return;const key='tradebot:played:'+e.id;try{if(localStorage.getItem(key))return;localStorage.setItem(key,String(Date.now()));}catch{}const kind=tradeKind(e);if(!current.current.tones[kind].enabled)return;if(armed.current){queue.current.push(current.current.tones[kind].sound);next();}setTimeout(()=>{if(alive.current){const fa=current.current.tones[kind].language==='fa';speak(fa?`${PERSIAN_LABELS[kind]}، ارز ${faSymbol(e.symbol)}، تعداد ${e.qty}، قیمت ${e.price}.${e.pnl===null?'':` سود و زیان تحقق‌یافته ${e.pnl} تتر.`}`:`${ALERT_LABELS[kind]} for ${e.symbol}. Quantity ${e.qty}. Price ${e.price}.${e.pnl===null?'':` Realized P and L ${e.pnl} USDT.`}`,kind);}},armed.current?2200:0);};
   try{if(navigator.locks)await navigator.locks.request('tradebot-audio-claim',claim);else claim();}catch{claim();}
  };
  const enqueueIndicator=async(e:AlertEvent)=>{
-  if(!armed.current||!current.current.sound)return;
+  if(!current.current.sound)return;
   const claim=()=>{
-   if(!armed.current||!alive.current||!current.current.sound)return;
+   if(!alive.current||!current.current.sound)return;
    const key='tradebot:played:indicator:'+e.id;
    try{if(localStorage.getItem(key))return;localStorage.setItem(key,String(Date.now()));}catch{}
    const kind:AlertKind=e.positionId?'SMART_MART':e.indicator as AlertKind;
    if(!current.current.tones[kind]?.enabled)return;
-   queue.current.push(current.current.tones[kind].sound);next();
-   setTimeout(()=>{if(alive.current){const fa=current.current.tones[kind].language==='fa';speak(fa?`${PERSIAN_LABELS[kind]} برای ${faSymbol(e.symbol)}، تایم فریم ${faTimeframe(timeframeLabel(e.timeframe))}، ${faCondition(e.conditionLabel)}، قیمت ${e.price}.`:`${ALERT_LABELS[kind]} for ${e.symbol}. ${timeframeLabel(e.timeframe)} timeframe. ${e.conditionLabel}. Price ${e.price}.`,kind);}},2200);
+   if(armed.current){queue.current.push(current.current.tones[kind].sound);next();}
+   setTimeout(()=>{if(alive.current){const fa=current.current.tones[kind].language==='fa';speak(fa?`${PERSIAN_LABELS[kind]} برای ${faSymbol(e.symbol)}، تایم فریم ${faTimeframe(timeframeLabel(e.timeframe))}، ${faCondition(e.conditionLabel)}، قیمت ${e.price}.`:`${ALERT_LABELS[kind]} for ${e.symbol}. ${timeframeLabel(e.timeframe)} timeframe. ${e.conditionLabel}. Price ${e.price}.`,kind);}},armed.current?2200:0);
   };
   try{if(navigator.locks)await navigator.locks.request('tradebot-audio-claim',claim);else claim();}catch{claim();}
  };
+ useEffect(()=>{
+  const test=()=>{
+   const now=Date.now();
+   const sample:AlertEvent={id:`local-audio-test-${now}`,ruleId:'local-test',ruleName:'EMA voice test',symbol:'BTCUSDT',indicator:'EMA',params:{period:50},timeframe:'60',condition:'test',conditionLabel:'Price crosses above EMA 50',mode:'close',candleTime:Math.floor(now/1000),price:100,indicatorValues:{},at:now,status:'new'};
+   void enqueueIndicator(sample);
+  };
+  window.addEventListener('tradebot:test-indicator-audio',test);
+  return()=>window.removeEventListener('tradebot:test-indicator-audio',test);
+ },[]);
  const pumpToasts=()=>{const visible=visibleToasts.current.filter(e=>e.expires>Date.now());const updated=[...visible,...pendingToasts.current.splice(0,Math.max(0,4-visible.length)).map(e=>({...e,expires:Date.now()+12000}))];visibleToasts.current=updated;setToasts(updated);};
  useEffect(()=>{alive.current=true;const tick=setInterval(pumpToasts,1000);return()=>{alive.current=false;clearInterval(tick);armed.current=false;queue.current=[];stop();};},[]);
  // Browsers revoke autoplay permission on reload. Keep the saved preference and
@@ -130,6 +139,7 @@ function TradeAlertForm({context:c}:{context:Context}){
  const groups:[string,AlertKind[]][]=[['Positions',['BUY_OPEN','BUY_CLOSE','SHORT_OPEN','SHORT_CLOSE']],['Pump & Dump',['PUMP_SHORT_OPEN','PUMP_SHORT_CLOSE','DUMP_BUY_OPEN','DUMP_BUY_CLOSE']],['Indicators',[...INDICATOR_KINDS]],['Other',['SMART_MART']]];
  return <fieldset className="trade-alert-settings"><legend>Trade Alerts</legend>
   <div className="trade-alert-switches"><label><input type="checkbox" checked={draft.text} onChange={e=>update({...draft,text:e.target.checked})}/>Text notifications</label><label><input type="checkbox" checked={draft.sound} onChange={e=>update({...draft,sound:e.target.checked})}/>Sound</label><label><input type="checkbox" checked={draft.voice} onChange={e=>update({...draft,voice:e.target.checked})}/>Spoken alerts</label><button type="button" onClick={()=>c.ready?c.mute():c.preview(draft.tones.BUY_OPEN.sound,draft.volume)}>{c.ready?'Mute Sound':'Enable Sound'}</button><span className={c.ready?'green':''}>{c.ready?'Sound ready':'Click to enable audio'}</span></div>
+  <div className="trade-alert-test"><button type="button" onClick={()=>window.dispatchEvent(new Event('tradebot:test-indicator-audio'))}>Test EMA Alert (sound + voice)</button><small>No real signal or order is created.</small></div>
   {groups.map(([group,kinds])=><section className="trade-alert-group" key={group}><h4>{group}</h4><div className="trade-alert-sound-grid">{kinds.map(kind=><div className="trade-alert-tone" key={kind}>
    <label className="trade-alert-tone-name"><input aria-label={'Enable '+ALERT_LABELS[kind]} type="checkbox" checked={draft.tones[kind].enabled} onChange={e=>changeTone(kind,{enabled:e.target.checked})}/>{ALERT_LABELS[kind]}</label>
    <div className="trade-alert-tone-control"><select aria-label={ALERT_LABELS[kind]+' ringtone'} value={draft.tones[kind].sound} onChange={e=>changeTone(kind,{sound:e.target.value})}>{SOUNDS.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select><button type="button" title="Preview ringtone" onClick={()=>c.preview(draft.tones[kind].sound,draft.volume)}>▶</button></div>
