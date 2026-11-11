@@ -2,21 +2,24 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { BotStateSummary } from '../../types/trading.ts';
 import { FilterChoices } from './FilterChoices.tsx';
 import { ManualOrderDialog } from './ManualOrderDialog.tsx';
+import { navigate } from './navigation.ts';
 import { Pager, RowsPicker, SortTh, price, sortRows, usePaged, useSort } from './table.tsx';
 
 type Candidate = { symbol: string; peak: number; trough: number; lastPrice: number; dropPct: number; peakAt: number; excludedBuy: boolean };
 type Scan = { running: boolean; checked: number; total: number; error: string | null; lastCompletedAt: number | null; settings: {minDropPct:number;lookbackDays:number}; candidates: Candidate[] };
+type DumpStats = {closedCount:number;realizedPnlUsdt:number};
 type Filter = 'ALL' | 'ELIGIBLE' | 'EXCLUDED';
 type SortKey = 'symbol' | 'peak' | 'trough' | 'lastPrice' | 'dropPct' | 'peakAt' | 'status';
 
 export function LightDumpBuy({ state }: { state: BotStateSummary | null }) {
   const [scan, setScan] = useState<Scan | null>(null), [error, setError] = useState('');
+  const [stats,setStats]=useState<DumpStats|null>(null);
   const [manualBuy, setManualBuy] = useState<string | null>(null);
   const [query, setQuery] = useState(''), [filter, setFilter] = useState<Filter>('ALL');
   const [size, setSize] = useState(20), [page, setPage] = useState(1);
   const [sort, toggleSort] = useSort<SortKey>();
   const refresh = async () => { try { const r = await fetch('/api/dump-buy/scan', { cache: 'no-store' }); const d = await r.json(); if (!r.ok) throw Error(d.error || 'Scanner unavailable'); setScan(d); } catch (e: any) { setError(e.message || 'Scanner unavailable'); } };
-  useEffect(() => { void refresh(); const timer = setInterval(() => void refresh(), 5000); return () => clearInterval(timer); }, []);
+  useEffect(() => { const update=()=>{void refresh();void fetch('/api/dump-buy/positions').then(r=>r.json()).then(d=>setStats({closedCount:Number(d.closedCount)||0,realizedPnlUsdt:Number(d.realizedPnlUsdt)||0})).catch(()=>{});};update();const timer=setInterval(update,5000);return()=>clearInterval(timer);}, []);
   const start = async () => { try { setError(''); const r = await fetch('/api/dump-buy/scan', { method: 'POST' }); if (!r.ok) throw Error('Cannot start scan'); void refresh(); } catch (e: any) { setError(e.message || 'Cannot start scan'); } };
   const all = scan?.candidates || [];
   const eligible = all.filter(c => !c.excludedBuy).length;
@@ -28,17 +31,20 @@ export function LightDumpBuy({ state }: { state: BotStateSummary | null }) {
     <section className="section">
       <div className="legend">Dump Buy — Market Scanner</div>
       <div className="metrics">
-        <div className="metric"><div className="name">Drop threshold</div><div className="val">{scan?.settings.minDropPct ?? 60}%</div></div>
+        <div className="metric"><div className="name">Drop threshold</div><div className="val">{scan?.settings.minDropPct ?? 50}%</div></div>
         <div className="metric"><div className="name">Eligible (no BUY)</div><div className="val green">{eligible}</div></div>
         <div className="metric"><div className="name">Existing BUY</div><div className="val red">{all.length - eligible}</div></div>
         <div className="metric"><div className="name">Checked</div><div className="val">{scan?.checked ?? 0} / {scan?.total ?? 0}</div></div>
+        <div className="metric"><div className="name">Closed Dump BUY</div><div className="val">{stats?.closedCount ?? '—'}</div></div>
+        <div className="metric"><div className="name">Realized P&amp;L (USDT)</div><div className={'val '+((stats?.realizedPnlUsdt||0)>=0?'green':'red')}>{stats?stats.realizedPnlUsdt.toFixed(4):'—'}</div></div>
       </div>
       <div style={{ display:'flex',alignItems:'center',gap:12,flexWrap:'wrap',marginTop:12 }}>
         <button type="button" className="save" disabled={scan?.running} onClick={()=>void start()}>{scan?.running?'Scanning…':'Scan Now'}</button>
-        <span style={{color:'#9da2ac',fontSize:12}}>{scan?.lastCompletedAt ? 'Last scan: '+new Date(scan.lastCompletedAt).toLocaleString() : 'Waiting for scan'} · Window: {scan?.settings.lookbackDays ?? 10} days</span>
+        <span style={{color:'#9da2ac',fontSize:12}}>{scan?.lastCompletedAt ? 'Last scan: '+new Date(scan.lastCompletedAt).toLocaleString() : 'Waiting for scan'} · Window: {scan?.settings.lookbackDays ?? 20} days</span>
       </div>
       {(error || scan?.error) && <p className="field-error" role="alert">{error || scan?.error}</p>}
-      <p className="lp-source-note">A dump means the last traded price is at least the configured percentage below an earlier high within the lookback window, after a later low. This is a scanner, not a BUY recommendation. Orders are manual and require a separate confirmation.</p>
+      <p className="lp-source-note">A dump is a price decline from an earlier high within the selected lookback window. Automatic BUY requires an explicit enable action in Dashboard, REAL trading mode and exchange preflight checks. Manual BUY still requires confirmation.</p>
+      <button type="button" className="row-act" onClick={()=>navigate('/DumpPositions')}>View Dump Positions &amp; Closed P&amp;L</button>
     </section>
     <section className="section">
       <div className="lp-toolbar">

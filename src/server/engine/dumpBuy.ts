@@ -10,6 +10,12 @@ export interface DumpCandidate {
   excludedBuy: boolean;
 }
 
+/** BUY exit is the configured recovery from actual entry toward the pre-dump peak. */
+export function dumpBuyEntryTarget(entryPrice:number,peak:number,recoveryPct=50):number {
+  if(!(entryPrice>0&&peak>entryPrice&&recoveryPct>0&&recoveryPct<=100))throw Error('Invalid Dump BUY recovery target');
+  return entryPrice+(peak-entryPrice)*recoveryPct/100;
+}
+
 /** Highest earlier candle HIGH followed by a later LOW, with current price still down
  * at least minDropPct from that high. Same-candle high/low ordering is not assumed. */
 export function findDump(candles: readonly PumpCandle[], now: number, days: number, minDropPct: number, lastPrice: number) {

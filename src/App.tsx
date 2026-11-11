@@ -14,6 +14,7 @@ import { LightShell } from './components/light/LightShell.tsx';
 import { LightDashboard } from './components/light/LightDashboard.tsx';
 const LightPumpShort = lazy(() => import('./components/light/LightPumpShort.tsx').then(module => ({default: module.LightPumpShort})));
 const LightDumpBuy = lazy(() => import('./components/light/LightDumpBuy.tsx').then(module => ({default: module.LightDumpBuy})));
+const LightDumpPositions = lazy(() => import('./components/light/LightDumpPositions.tsx').then(module => ({default: module.LightDumpPositions})));
 const LightPumpPositions = lazy(() => import('./components/light/LightPumpPositions.tsx').then(module => ({default: module.LightPumpPositions})));
 const LightSymbols = lazy(() => import('./components/light/LightSymbols.tsx').then(module => ({default: module.LightSymbols})));
 const LightBotPositions = lazy(() => import('./components/light/LightBotPositions.tsx').then(module => ({default: module.LightBotPositions})));
@@ -41,6 +42,7 @@ export default function App() {
       {activeTab === 'dashboard' && <LightDashboard state={state} onRefresh={refresh} />}
       {activeTab === 'pump_short' && <LightPumpShort state={state} />}
       {activeTab === 'dump_buy' && <LightDumpBuy state={state} />}
+      {activeTab === 'dump_positions' && <LightDumpPositions />}
       {activeTab === 'pump_positions' && <LightPumpPositions />}
       {activeTab === 'symbols' && <LightSymbols state={state} onRefresh={refresh} onGoSymbol={setSelectedSymbol} />}
       {activeTab === 'bot_cycles' && <BotCyclesView state={state} onRefresh={refresh} onGoSymbols={() => go('symbols')} />}

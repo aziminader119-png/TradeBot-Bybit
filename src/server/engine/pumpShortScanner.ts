@@ -41,7 +41,7 @@ export class PumpShortScanner {
   }
 
   public dumpSnapshot() {
-    const settings = this.db.getSettings().dumpBuy || { minDropPct: 60, lookbackDays: 10 };
+    const settings = this.db.getSettings().dumpBuy || { minDropPct: 50, lookbackDays: 20 };
     return { running: this.running, checked: this.checked, total: this.total, error: this.error,
       lastCompletedAt: this.lastCompletedAt, settings, candidates: this.dumpCandidates.filter(c => c.dropPct >= settings.minDropPct) };
   }
@@ -51,7 +51,7 @@ export class PumpShortScanner {
     this.running = true; this.error = null; this.checked = 0; this.total = 0;
     try {
       const settings = this.db.getSettings().pumpShort || { ...DEFAULT_PUMP_SHORT, positionNotionalUsdt: 30 };
-      const dump = this.db.getSettings().dumpBuy || { minDropPct: 60, lookbackDays: 10 };
+      const dump = this.db.getSettings().dumpBuy || { minDropPct: 50, lookbackDays: 20 };
       const windowDays = Math.max(settings.lookbackDays, dump.lookbackDays);
       const instruments = await this.client.getInstrumentsInfo();
       const tickers = await this.client.getTickers();

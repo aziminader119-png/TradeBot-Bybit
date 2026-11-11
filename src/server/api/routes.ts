@@ -11,6 +11,7 @@ import { BybitClient, BYBIT_REST_HOSTS, cleanCredential } from '../bybit/bybitCl
 import { DEFAULT_PUMP_SHORT, validatePumpShortSettings } from '../engine/pumpShort.ts';
 import { PumpShortScanner } from '../engine/pumpShortScanner.ts';
 import { PumpShortTrader } from '../engine/pumpShortTrader.ts';
+import { DumpBuyTrader } from '../engine/dumpBuyTrader.ts';
 
 export const apiRouter = Router();
 apiRouter.use('/futures',futuresRouter);
@@ -23,6 +24,8 @@ const pumpScanner = new PumpShortScanner(engine.getClient(), db);
 pumpScanner.start();
 const pumpTrader = new PumpShortTrader(engine, db, pumpScanner);
 pumpTrader.start();
+const dumpTrader = new DumpBuyTrader(engine, db, pumpScanner);
+dumpTrader.start();
 const wsServer = AppWebSocketServer.getInstance();
 
 // Phase 1 helpers -----------------------------------------------------------
@@ -83,7 +86,7 @@ apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
   }
 });
 apiRouter.get('/pump-short/scan', (_req: Request, res: Response) => res.json(pumpScanner.snapshot()));
-apiRouter.get('/dump-buy/settings', (_req: Request, res: Response) => res.json({ settings: db.getSettings().dumpBuy || { minDropPct: 60, lookbackDays: 10 } }));
+apiRouter.get('/dump-buy/settings', (_req: Request, res: Response) => res.json({ settings: db.getSettings().dumpBuy || { minDropPct: 50, lookbackDays: 20 } }));
 apiRouter.post('/dump-buy/settings', (req: Request, res: Response) => {
   const minDropPct = Number(req.body?.minDropPct), lookbackDays = Number(req.body?.lookbackDays);
   if (!Number.isFinite(minDropPct) || minDropPct <= 0 || minDropPct >= 100 || !Number.isInteger(lookbackDays) || lookbackDays < 1 || lookbackDays > 365) {
@@ -95,6 +98,14 @@ apiRouter.post('/dump-buy/settings', (req: Request, res: Response) => {
   return res.json({ success: true, settings: { minDropPct, lookbackDays } });
 });
 apiRouter.get('/dump-buy/scan', (_req: Request, res: Response) => res.json(pumpScanner.dumpSnapshot()));
+apiRouter.get('/dump-buy/positions', (_req: Request, res: Response) => res.json(dumpTrader.snapshot()));
+apiRouter.post('/dump-buy/arm', (req: Request, res: Response) => {
+  try {
+    if(req.body?.enabled===false)dumpTrader.disarm();
+    else dumpTrader.arm(req.body?.confirm===true);
+    res.json({success:true,...dumpTrader.snapshot()});
+  } catch(e:any){res.status(409).json({success:false,error:e.message});}
+});
 apiRouter.post('/dump-buy/scan', (_req: Request, res: Response) => {
   if (!pumpScanner.snapshot().running) void pumpScanner.scan();
   res.json({ success: true, ...pumpScanner.dumpSnapshot() });

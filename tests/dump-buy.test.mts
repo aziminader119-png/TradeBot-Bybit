@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findDump } from '../src/server/engine/dumpBuy.ts';
+import { findDump, dumpBuyEntryTarget } from '../src/server/engine/dumpBuy.ts';
 
 const day=86400000,now=20*day;
 const candle=(d:number,l:number,h:number)=>({t:d*day,l,h});
+
+test('50% decline within 20 days qualifies, but a recovered price does not',()=>{
+  const candles=[candle(1,90,100),candle(10,42,50),candle(19,38,45)];
+  assert.equal(findDump(candles,now,20,50,49)?.dropPct,51);
+  assert.equal(findDump(candles,now,20,50,52),null);
+});
+test('Dump BUY exit is halfway from real BUY entry toward pre-dump peak',()=>{
+  assert.equal(dumpBuyEntryTarget(40,100,50),70);
+  assert.throws(()=>dumpBuyEntryTarget(100,40));
+});
 
 test('60% drop from earlier high to current price is shown',()=>{
   const d=findDump([candle(11,90,100),candle(12,35,50),candle(13,36,45)],now,10,60,39);

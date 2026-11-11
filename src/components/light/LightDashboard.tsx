@@ -55,10 +55,12 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const account = useRead<AccountInfo>('/api/auth/account', 120000);
   const [toast, showToast] = useToast();
   const [pump, setPump] = useState({ minGrowthPct: '20', lookbackDays: '10', retracementPct: '50', positionNotionalUsdt: '30', maxPositions: '10' });
-  const [dump, setDump] = useState({ minDropPct: '60', lookbackDays: '10' });
+  const [dump, setDump] = useState({ minDropPct: '50', lookbackDays: '20' });
   const [dumpSaving, setDumpSaving] = useState(false);
   const [dumpStatus, setDumpStatus] = useState<string | null>(null);
   const [dumpError, setDumpError] = useState<string | null>(null);
+  const [dumpExecution,setDumpExecution]=useState<{armed:boolean;mode:string}|null>(null);
+  const [dumpArmBusy,setDumpArmBusy]=useState(false);
   const [pumpSaving, setPumpSaving] = useState(false);
   const [pumpStatus, setPumpStatus] = useState<string | null>(null);
   const [pumpError, setPumpError] = useState<string | null>(null);
@@ -75,6 +77,15 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
       setDump({ minDropPct: String(data.settings.minDropPct), lookbackDays: String(data.settings.lookbackDays) });
     }).catch(e => setDumpError(e.message));
   }, []);
+  useEffect(()=>{const refresh=()=>void fetch('/api/dump-buy/positions').then(r=>r.json()).then(d=>setDumpExecution({armed:Boolean(d.armed),mode:String(d.mode||'OFF')})).catch(()=>{});
+    refresh();const timer=setInterval(refresh,5000);return()=>clearInterval(timer);},[]);
+  const armDump=async(enabled:boolean)=>{
+    if(!window.confirm(enabled?'Enable REAL automated Dump BUY orders? Max 10 open positions; 30 USDT per entry; exit at 50% retracement toward the previous high.':'Stop Dump BUY automation? Existing positions remain open.'))return;
+    setDumpArmBusy(true);setDumpError(null);
+    try{const r=await postJson('/api/dump-buy/arm',{enabled,confirm:true});if(!r.ok)throw Error(r.data?.error||`HTTP ${r.status}`);
+      setDumpExecution({armed:Boolean(r.data.armed),mode:String(r.data.mode)});showToast(enabled?'Dump BUY automation enabled':'Dump BUY automation stopped');}
+    catch(e:any){setDumpError(e.message||String(e));}finally{setDumpArmBusy(false);}
+  };
   const saveDump = async () => {
     const body = { minDropPct: Number(dump.minDropPct), lookbackDays: Number(dump.lookbackDays) };
     if (!dump.minDropPct.trim() || !dump.lookbackDays.trim() || !(body.minDropPct > 0 && body.minDropPct < 100) || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365) {
@@ -295,14 +306,16 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         </div>
         {pumpArmError && <p role="alert" className="field-error">{pumpArmError}</p>}
       </Box>
-      <Box legend="Dump Buy — Manual BUY Scanner" testid="dump-buy-settings" onSave={saveDump} saving={dumpSaving} status={dumpStatus} error={dumpError} inlineSave>
+      <Box legend="Dump Buy — Automatic BUY" testid="dump-buy-settings" onSave={saveDump} saving={dumpSaving} status={dumpStatus} error={dumpError} inlineSave>
         <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))',gap:8 }}>
           <label style={labelStyle()}>Minimum drop (%)<input aria-label="Dump minimum drop percent" type="number" min="0.1" max="99.9" step="0.1" value={dump.minDropPct} onChange={e=>setDump(d=>({...d,minDropPct:e.target.value}))}/></label>
           <label style={labelStyle()}>Lookback (days)<input aria-label="Dump lookback days" type="number" min="1" max="365" step="1" value={dump.lookbackDays} onChange={e=>setDump(d=>({...d,lookbackDays:e.target.value}))}/></label>
         </div>
         <div style={{ display:'flex',gap:10,alignItems:'center',marginTop:8,flexWrap:'wrap' }}>
-          <span style={{fontSize:12}}>Read-only scanner · no automatic BUY orders</span>
-          <button type="button" onClick={()=>navigate('/DumpBuy')}>View Dump Scanner</button><span style={{flex:1}}/>
+          <span style={{fontSize:12}}>30 USDT / BUY · max 10 · 50% recovery toward prior high · disarmed after restart</span>
+          <button type="button" disabled={dumpArmBusy} onClick={()=>void armDump(!dumpExecution?.armed)}>{dumpExecution?.armed?'Stop Auto BUY':'Enable Auto BUY'}</button>
+          <button type="button" onClick={()=>navigate('/DumpBuy')}>View Dump Scanner</button>
+          <button type="button" onClick={()=>navigate('/DumpPositions')}>Dump Positions</button><span style={{flex:1}}/>
           <button className="save" type="button" disabled={dumpSaving} onClick={()=>void saveDump()}>{dumpSaving?'Saving…':'Save'}</button>
         </div>
       </Box>
