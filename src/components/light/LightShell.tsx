@@ -73,6 +73,7 @@ export const LightShell: React.FC<{
   // from every dashboard view. Trade events still trigger an explicit refresh.
   const closedRead = useRead<{ rows: any[]; days: number }>(configured ? closedUrl(CLOSED_DEFAULT_DAYS) : null, 60000);
   const pumpRead = useRead<{ trades: { symbol: string; status: string }[] }>('/api/pump-short/positions', 5000);
+  const dumpRead = useRead<{ trades: { status: string }[] }>('/api/dump-buy/positions', 5000);
   const counts: Record<string, number | null> = useMemo(() => {
     const allCycles = ((state as any)?.strategyCycles || {}) as Record<string, StrategyCycle>;
     const thresholds = savedThresholds(state);
@@ -83,6 +84,7 @@ export const LightShell: React.FC<{
     return {
       symbols, all_positions: pos ? pos.length : null, latest_opened: pos ? pos.length : null,
       pump_positions: pumpRead.data ? activePump.length : null,
+      dump_positions: dumpRead.data?.trades ? dumpRead.data.trades.filter(t => t.status !== 'CLOSED').length : null,
       bot_positions: pos ? pos.filter((p) => p.owner === 'bot').length : null,
       external_positions: pos ? pos.filter((p) => inPositionView(p, 'external', { cycles: allCycles, thresholds, now, aged }) &&
         !(p.side === 'Sell' && pumpSymbols.has(p.symbol))).length : null,
@@ -97,9 +99,10 @@ export const LightShell: React.FC<{
       alert_history: state?.indicatorAlerts ? state.indicatorAlerts.events : null,
       logs: state ? (state.recentLogs || []).filter(visibleLog).length : null,
     };
-  }, [symbols, pos, state, now, tradesRead.data, closedRead.data, pumpRead.data]);
+  }, [symbols, pos, state, now, tradesRead.data, closedRead.data, pumpRead.data, dumpRead.data]);
   const countScope: Record<string, string> = {
     pump_positions: 'Pump Short open, pending and review records (excluding closed and manually released records).',
+    dump_positions: 'Dump BUY open, pending and review records (excluding closed trades).',
     external_positions: 'Exchange positions without main BOT ownership or active Pump Short ownership.',
     trade_history: 'Real (LIVE) bot executions in the stored record list (Simulation and unverified legacy excluded). The bot keeps only its latest records, so this is not a lifetime total.',
     closed_positions: `Bybit closed positions in the last ${CLOSED_DEFAULT_DAYS} days (the page's default period).`,
