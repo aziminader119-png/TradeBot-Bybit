@@ -193,7 +193,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
         <div className="lp-toolbar">
           <div className="tb-left"><input className="search" type="search" placeholder="Search by Symbol (e.g. BTC)..." aria-label="Search symbols" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="symbol-search" /></div>
           <FilterChoices<Mode> label="Management" className="management-filter" testId="mgmt-filter" optionAttribute="data-mode" value={mode} options={[{value:'all',label:'All'},{value:'both',label:'Both'},{value:'LONG',label:'BUY'},{value:'SHORT',label:'SHORT'},{value:'none',label:'None'}]} onChange={reset(setMode)}/>
-          <RowsPicker size={size} onSize={reset(setSize)} />
+
           <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-side" value={sideF} options={[{value:'all',label:'All Sides'},{value:'BUY',label:'BUY'},{value:'SELL',label:'SHORT'}]} onChange={reset(setSideF)}/>
         </div>
         {historyBusy && <div role="status" className="ft-muted">Loading historical changes: {historyProgress.done} / {historyProgress.total} symbols…</div>}
@@ -246,7 +246,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
             </tbody>
           </table>
         </div>
-        <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} />
+        <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={reset(setSize)} /></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} /></div>
       </section>
 
       {dialogSymbol && <HedgeStartDialog symbol={dialogSymbol} pinRequired={pinRequired} onClose={() => setDialogSymbol(null)} onDone={onRefresh} />}
