@@ -1,9 +1,7 @@
 import {visibleLog} from '../../shared/visibleLog.ts';
 /// <reference path="./imageTypes.d.ts"/>
 import {TradeNotificationBell} from '../notifications/TradeNotifications.tsx';
-import {useDialogFocus} from './useDialogFocus.ts';
 import {updateStatus} from './uiStatus.ts';
-import sidebarLogo from '../../assets/branding/sidebar-logo.png';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertItem, BotStateSummary, TradeLog } from '../../types/trading.ts';
 import type { StrategyCycle } from '../../types/strategy.ts';
@@ -11,8 +9,23 @@ import { useRead } from './reports.tsx';
 import { formatCount } from './format.tsx';
 import { CLOSED_DEFAULT_DAYS, TRADES_URL, closedUrl, inPositionView, liveTradeRecords, liveTriggerRecords, savedThresholds } from './listCounts.ts';
 import {PAGE_PATHS,linkClick} from './navigation.ts';
-import { LIGHT_NAV, NavIcon } from './nav.tsx';
+import { LIGHT_NAV } from './nav.tsx';
 import { LightModal, postJson } from './Modal.tsx';
+
+const TOP_GROUPS: {name:string; entry:string; tabs:{id:string;name:string}[]}[] = [
+  {name:'Dashboard',entry:'dashboard',tabs:[{id:'dashboard',name:'Overview'}]},
+  {name:'Positions',entry:'all_positions',tabs:[
+    {id:'all_positions',name:'All Positions'},{id:'bot_positions',name:'BOT'},{id:'pump_positions',name:'Pump'},
+    {id:'dump_positions',name:'Dump'},{id:'external_positions',name:'External'},{id:'mart_positions',name:'MART'},
+    {id:'closed_positions',name:'Closed'},{id:'aged_positions',name:'Aged'},{id:'latest_opened',name:'Latest'},
+    {id:'deep_loss_positions',name:'Deep Loss'},{id:'deep_profit_positions',name:'Deep Profit'},
+    {id:'high_margin_positions',name:'High Margin'}]},
+  {name:'Symbols',entry:'symbols',tabs:[{id:'symbols',name:'All Symbols'},{id:'symbol_trading',name:'Single Coin'}]},
+  {name:'Strategies',entry:'bot_cycles',tabs:[{id:'bot_cycles',name:'BOT Cycles'},{id:'pump_short',name:'Pump Short'},{id:'dump_buy',name:'Dump Buy'}]},
+  {name:'Analytics',entry:'pl_analytics',tabs:[{id:'pl_analytics',name:'P&L Analytics'},{id:'trade_history',name:'Trade History'},{id:'trigger_orders',name:'Trigger Orders'}]},
+  {name:'Settings',entry:'security',tabs:[{id:'security',name:'Security'},{id:'smart_mart_alerts',name:'Smart MART Alerts'},
+    {id:'alert_history',name:'Alert History'},{id:'logs',name:'Logs'}]}
+];
 
 // Approved light design: fixed sidebar + sticky 110px header with the eight account figures, START/STOP and Logout.
 // Every figure comes from the server (WebSocket snapshot + REST); "—" when not available.
@@ -35,15 +48,6 @@ export function syncedPositions(state: BotStateSummary | null) {
 export const LightShell: React.FC<{
   state: BotStateSummary | null; wsConnected: boolean; lastUpdated: number; activeTab: string; onTab: (t: string) => void; onRefresh: () => void; children: React.ReactNode;
 }> = ({ state, wsConnected, lastUpdated, activeTab, onTab, onRefresh, children }) => {
-  const [collapsed, setCollapsed] = useState(false);
-  const [menuOpen,setMenuOpen]=useState(false);
-  const sidebarRef=useDialogFocus(menuOpen,false,()=>setMenuOpen(false));
-  useEffect(()=>{setMenuOpen(false);},[activeTab]);
-  useEffect(()=>{
-    const media=window.matchMedia('(max-width:760px)');
-    const resize=()=>{if(!media.matches)setMenuOpen(false);};
-    media.addEventListener('change',resize);return()=>media.removeEventListener('change',resize);
-  },[]);
   const [modal, setModal] = useState<null | 'start' | 'stop'>(null);
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
@@ -113,6 +117,7 @@ export const LightShell: React.FC<{
     aged_positions: 'Positions recorded open for at least 24 hours (the page default).',
   };
   const title = LIGHT_NAV.find((n) => n.id === activeTab)?.label || (activeTab === 'symbol_trading' ? 'Futures' : 'Dashboard');
+  const currentGroup = TOP_GROUPS.find((g) => g.tabs.some((t) => t.id === activeTab)) || TOP_GROUPS[0];
   const upnl = has ? w.unrealizedPnl : null;
 
   const openStartStop = () => {
@@ -133,30 +138,26 @@ export const LightShell: React.FC<{
   };
 
   return (
-    <div className={`page page-dashboard${activeTab === 'symbol_trading' ? ' symbol-standalone' : ''}${collapsed ? ' sb-collapsed' : ''}${menuOpen ? ' mobile-nav-open' : ''}`}>
+    <div className="page page-dashboard tb-unified-shell">
       <a className="skip-link" href="#main-content">Skip to content</a>
-      {menuOpen&&<button className="nav-backdrop" aria-label="Close navigation" onClick={()=>setMenuOpen(false)}/>}
       <div className="app">
-        {activeTab !== 'symbol_trading' && <aside ref={sidebarRef} tabIndex={-1} className="sidebar" id="appSidebar" role={menuOpen?'dialog':undefined} aria-modal={menuOpen?true:undefined} aria-label="Main menu">
-          <button className="brand" type="button" aria-label={menuOpen?'Close navigation':collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed} onClick={() => window.matchMedia('(max-width:760px)').matches?setMenuOpen(false):setCollapsed((v) => !v)}>
-            <img className="sidebar-logo-wide" src={sidebarLogo} alt="TradeBot Pro"/><img className="sidebar-logo-icon" src="/tradebot-icon-v1.png" alt="TradeBot Pro"/><span className="collapse" aria-hidden="true">{collapsed ? '»' : '«'}</span>
-          </button>
-          <nav className="nav" id="navigation" aria-label="Main navigation">
-            {LIGHT_NAV.map((n) => (
-              <a key={n.id} href={PAGE_PATHS[n.id]||'/Dashboard'} title={n.built ? n.label : `${n.label} — coming soon (not available in this version)`} data-nav={n.id} data-soon={n.built ? undefined : 'true'} className={[activeTab === n.id ? 'active' : '', n.built ? '' : 'soon'].filter(Boolean).join(' ') || undefined} aria-current={activeTab === n.id ? 'page' : undefined} onClick={(e) => linkClick(e,PAGE_PATHS[n.id]||'/Dashboard')}>
-                <span className="nav-ico" aria-hidden="true"><NavIcon>{n.icon}</NavIcon></span>
-                <span className="nav-label">{n.label}</span>
-                {!n.built ? <span className="nav-count">—</span> : n.id in counts ? <span className="nav-count" data-count={counts[n.id] ?? 'unavailable'} title={countScope[n.id]}>{formatCount(counts[n.id], n.id === 'trade_history' || n.id === 'closed_positions')}</span> : null}
-              </a>
-            ))}
-          </nav>
-          <div className="sidebar-credit"><strong>NADER</strong><span className="credit-detail" style={{ fontSize: 10 }}>Design &amp; Development</span></div>
-        </aside>}
         <main className="main" id="dashboard">
+           <div className="tb-top-nav">
+             <button className="tb-top-brand" type="button" onClick={() => onTab('dashboard')} aria-label="TradeBot Pro Dashboard">
+               <img src="/tradebot-icon-v1.png" alt="" /><span>TRADEBOT <em>PRO</em></span>
+             </button>
+             <nav className="tb-primary-nav" aria-label="Primary navigation">
+               {TOP_GROUPS.map((g) => <a key={g.name} href={PAGE_PATHS[g.entry]}
+                 className={currentGroup.name === g.name ? 'active' : undefined}
+                 aria-current={currentGroup.name === g.name ? 'page' : undefined}
+                 onClick={(e) => linkClick(e, PAGE_PATHS[g.entry])}>{g.name}</a>)}
+             </nav>
+             <div className="tb-top-health"><span className={running ? 'tb-live-dot' : 'tb-off-dot'}/>
+               {running ? 'RUNNING' : 'STOPPED'}</div>
+           </div>
           <header className="top" data-testid="t-topbar">
             <div className="top-heading">
-              {activeTab!=='symbol_trading'&&<button className="mobile-menu-button" type="button" aria-label="Open navigation" aria-controls="appSidebar" aria-expanded={menuOpen} onClick={()=>setMenuOpen(true)}>☰ <span>Menu</span></button>}
-              <span className={`header-start-text${running ? ' is-on' : ''}`} role="button" tabIndex={0} data-testid="start-stop"
+                            <span className={`header-start-text${running ? ' is-on' : ''}`} role="button" tabIndex={0} data-testid="start-stop"
                 aria-disabled={!running && !(configured && conn?.state === 'CONNECTED') ? 'true' : undefined}
                 title={running ? 'Pause the bot (no TP close / reopen until started again)' : configured && conn?.state === 'CONNECTED' ? 'Start managing all saved bot cycles' : 'Connect the Bybit API first'}
                 onClick={openStartStop} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStartStop(); } }}>
