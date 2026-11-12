@@ -104,18 +104,6 @@ export const LightShell: React.FC<{
       logs: state ? (state.recentLogs || []).filter(visibleLog).length : null,
     };
   }, [symbols, pos, state, now, tradesRead.data, closedRead.data, pumpRead.data, dumpRead.data]);
-  const countScope: Record<string, string> = {
-    pump_positions: 'Pump Short open, pending and review records (excluding closed and manually released records).',
-    dump_positions: 'Dump BUY open, pending and review records (excluding closed trades).',
-    external_positions: 'Exchange positions without main BOT ownership or active Pump Short ownership.',
-    trade_history: 'Real (LIVE) bot executions in the stored record list (Simulation and unverified legacy excluded). The bot keeps only its latest records, so this is not a lifetime total.',
-    closed_positions: `Bybit closed positions in the last ${CLOSED_DEFAULT_DAYS} days (the page's default period).`,
-    logs: 'Latest log records in the live snapshot (up to 150), not a lifetime total.',
-    alert_history: 'Raised indicator and Smart MART alerts kept (latest 2,000), not a lifetime total.',
-    smart_mart_alerts: 'Smart MART alert definitions (position recovery alerts).',
-    trigger_orders: 'Real (LIVE) cycle sides + re-entry orders among the latest 50 order records.',
-    aged_positions: 'Positions recorded open for at least 24 hours (the page default).',
-  };
   const title = LIGHT_NAV.find((n) => n.id === activeTab)?.label || (activeTab === 'symbol_trading' ? 'Futures' : 'Dashboard');
   const currentGroup = TOP_GROUPS.find((g) => g.tabs.some((t) => t.id === activeTab)) || TOP_GROUPS[0];
   const upnl = has ? w.unrealizedPnl : null;
@@ -165,7 +153,7 @@ export const LightShell: React.FC<{
               </span>
               <strong>{title}</strong>
               <span className={'data-health '+health.tone} role="status" title={lastUpdated?'Last received '+new Date(lastUpdated).toLocaleTimeString():'Waiting for server'}>{health.label}</span>
-              {activeTab !== 'dashboard' && <a className="header-back" href="/Dashboard" onClick={(e) => linkClick(e,'/Dashboard')} data-testid="header-back">BACK</a>}
+
             </div>
             <div className="stats" data-testid="header-stats">
               <div className="stat"><div className="name">BOT Positions</div><div className="value">{counts.bot_positions ?? '—'}</div></div>
