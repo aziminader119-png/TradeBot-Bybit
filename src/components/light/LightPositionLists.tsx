@@ -155,7 +155,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
           {view === 'aged' && <label>Open longer than (days): <input type="number" min="0" step="0.5" value={minHours / 24} style={{ width: 80 }} onChange={(e) => { setMinHours(Math.max(0, Number(e.target.value) || 0) * 24); setMaxHours(null); setPage(1); }} /></label>}
         </div>
-        <RowsPicker size={size} onSize={reset(setSize)} />
+
         {view !== 'external' && view !== 'mart' && <FilterChoices<OwnerF> label="Owner" testId="owner-filter" optionAttribute="data-owner" value={ownerF} options={[{value:'ALL',label:'All Owners'},{value:'bot',label:'BOT'},{value:'external',label:'External'}]} onChange={reset(setOwnerF)}/>}
         <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-filter" value={sideF} options={[{value:'ALL',label:'All Sides'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}]} onChange={reset(setSideF)}/>
       </div>
@@ -208,7 +208,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
           </tbody>
         </table>
       </div>
-      {!fixedSymbol && <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="positions" onPage={setPage} />}
+      {!fixedSymbol && <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={reset(setSize)} /></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="positions" onPage={setPage} /></div>}
       </>}
     </div>
   );
