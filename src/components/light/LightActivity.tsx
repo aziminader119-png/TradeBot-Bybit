@@ -78,7 +78,7 @@ export const LightActivity: React.FC<{ state: BotStateSummary | null; view: 'tra
     <div className="page-summary">{stats.map(([label,value])=><div className="summary-item" key={label}><div className="k">{label}</div><div className="v">{state&&(!trades||stored.data)?value:'—'}</div></div>)}</div>
     <div className="lp-toolbar">
       <div className="tb-left"><input className="search" type="search" placeholder="Search symbol or order..." aria-label="Search symbol or order" value={q} onChange={e=>reset(setQ,e.target.value)}/></div>
-      <RowsPicker size={size} onSize={n=>{setSize(n);setPage(1);}}/>
+      
       <FilterChoices label="Side" className="tb-right" value={side} options={[{value:'ALL',label:'All Sides'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}]} onChange={s=>reset(setSide,s)}/>
     </div>
     <div className="lp-risk-filter">
@@ -94,6 +94,6 @@ export const LightActivity: React.FC<{ state: BotStateSummary | null; view: 'tra
     <div className="table-wrap"><table className="lp-table lp-activity-table"><thead><tr>{columns.map(col=><SortTh key={col.key} k={col.key} s={sort} onSort={toggle}>{col.label}</SortTh>)}</tr></thead><tbody>
       {!pg.slice.length?<tr><td className="empty" colSpan={columns.length}>{!state||(trades&&!stored.data)?(stored.error?'Execution records unavailable: '+stored.error:'Loading bot records...'):trades?'No matching recorded executions.':'No matching internal triggers or re-entry orders.'}</td></tr>:pg.slice.map(r=><tr key={r.key} title={[r.mode,r.note].filter(Boolean).join(' · ')}>{columns.map(col=><td key={col.key} data-col={col.key} title={r.cells[col.key]===null?'Not recorded':String(r.cells[col.key])} className={col.format==='pnl'?tone(Number(r.cells[col.key])):undefined}>{render(r.cells[col.key],col,r)}</td>)}</tr>)}
     </tbody></table></div>
-    <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun={trades?'executions':'triggers / re-entries'} onPage={setPage}/>
+    <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={n=>{setSize(n);setPage(1);}}/></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun={trades?'executions':'triggers / re-entries'} onPage={setPage}/></div>
   </div>;
 };
