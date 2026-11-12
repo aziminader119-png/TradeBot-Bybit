@@ -200,11 +200,10 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
         {historyError && <div role="alert" className="lp-error">{historyError} — click the column again to retry.</div>}
         <div className="aged-table-title"><span>All Symbols</span></div>
         <div className="table-wrap" role="region" tabIndex={0} aria-label="Symbols table">
-          <table className="lp-table symbols-table" data-testid="symbols-table">
-            <colgroup><col style={{ width: '10%' }} /><col style={{ width: '4.5%' }} /><col style={{ width: '8.5%' }} />{Array.from({ length: 9 }, (_, i) => <col key={i} style={{ width: '4.8%' }} />)}<col style={{ width: '8%' }} /><col style={{ width: '9.5%' }} /><col style={{ width: '12.3%' }} /></colgroup>
+          <table className="lp-table symbols-table tb-unified-symbols" data-testid="symbols-table">
+
             <thead><tr>
               <SortTh k="symbol" s={sort} onSort={sortClick}>Symbol</SortTh>
-              <th>Bybit</th>
               <SortTh k="price" s={sort} onSort={sortClick} title="Last traded price from Bybit's ticker">Last Price</SortTh>
               <SortTh k="h1" s={sort} onSort={sortClick} title="From Bybit's ticker (prevPrice1h)">1H %</SortTh>
               {CHANGE_COLS.slice(0, 3).map((t) => <SortTh key={t} k={t} s={sort} onSort={sortClick} title="Bybit candle history, sorted across all symbols">{t} %</SortTh>)}
@@ -215,16 +214,24 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
               <th>Trade</th>
             </tr></thead>
             <tbody>
-              {!rows ? <tr><td colSpan={15} className="empty">{error?'Bybit symbol list unavailable.':'Loading the Bybit symbol list…'}</td></tr>
-                : pg.slice.length === 0 ? <tr><td colSpan={15} className="empty">{rows.length ? 'No matching symbols' : 'No symbols loaded from Bybit'}</td></tr>
+              {!rows ? <tr><td colSpan={14} className="empty">{error?'Bybit symbol list unavailable.':'Loading the Bybit symbol list…'}</td></tr>
+                : pg.slice.length === 0 ? <tr><td colSpan={14} className="empty">{rows.length ? 'No matching symbols' : 'No symbols loaded from Bybit'}</td></tr>
                 : pg.slice.map((r) => {
                   const busy = Boolean(r.cycle && r.cycle !== 'CLOSED') || r.positions.length > 0;
                   const ext = r.positions.filter((p) => p.owner !== 'bot').length;
                   return (
                     <tr key={r.symbol} data-symbol={r.symbol}>
-                      <td className="symbol" title={r.symbol}><SymbolLink symbol={r.symbol} title="Open Futures workspace" className="symbol-link">{r.symbol}</SymbolLink><small className="maxlev">{r.maxLeverage ? `${r.maxLeverage} X` : '—'}</small></td>
-                      <td><a className="bybit-icon" title={`Open ${r.symbol} on Bybit`} target="_blank" rel="noopener noreferrer" href={`https://www.bybit.com/trade/usdt/${r.symbol}`}><ExtIcon /></a></td>
-                      <td data-col="price">{price(r.lastPrice)}</td>
+                      <td className="symbol" title={r.symbol}>
+                         <span className="tb-sym-compact"><span className="tb-sym-label">
+                           <SymbolLink symbol={r.symbol} title="Open Futures workspace" className="symbol-link">{r.symbol}</SymbolLink>
+                           <small className="maxlev">{r.maxLeverage ? `${r.maxLeverage} X` : '—'}</small>
+                         </span>
+                         <a className="bybit-icon" title={`Open ${r.symbol} on Bybit Futures`}
+                           aria-label={`Open ${r.symbol} on Bybit Futures`} target="_blank" rel="noopener noreferrer"
+                           href={`https://www.bybit.com/trade/usdt/${r.symbol}`}><ExtIcon /></a>
+                         </span>
+                       </td>
+                       <td data-col="price">{price(r.lastPrice)}</td>
                       <td className={`change ${tone(r.h1)}`} data-col="h1">{signedPct(r.h1)}</td>
                       {CHANGE_COLS.slice(0, 3).map((t) => <td key={t} className={`change ${tone(chg(r.symbol, t))}`} data-col={'c' + t}>{signedPct(chg(r.symbol, t))}</td>)}
                       <td className={`change ${tone(r.change24hPct)}`} data-col="h24">{signedPct(r.change24hPct)}</td>
