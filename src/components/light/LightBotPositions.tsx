@@ -125,7 +125,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
           <button className="tb-bulk" type="button" disabled title="Not available in this version" data-testid="bulk-release">Bulk Release All From BOT</button>
         </div>
-        <RowsPicker size={size} onSize={reset(setSize)} />
+
         <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-filter" value={sideF} options={[{value:'ALL',label:'All Sides'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}]} onChange={reset(setSideF)}/>
       </div>
 
@@ -174,7 +174,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
           </tbody>
         </table>
       </div>
-      <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="positions" onPage={setPage} />
+      <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={reset(setSize)} /></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="positions" onPage={setPage} /></div>
     </div>
   );
 };
