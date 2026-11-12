@@ -13,7 +13,7 @@ import { PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.
 // version ("—"). No order or ownership action is offered here (managing / resolving cycles stays on Bot Cycles).
 
 type SideF = 'ALL' | 'Buy' | 'Sell';
-type K = 'symbol' | 'size' | 'value' | 'entry' | 'mark' | 'liq' | 'upnl' | 'open' | 'age' | 'status' | 'tp';
+type K = 'symbol' | 'size' | 'value' | 'entry' | 'mark' | 'liq' | 'upnl' | 'upnlPct' | 'open' | 'age' | 'status' | 'tp';
 
 const age = (ms: number | null) => {
   if (ms === null || ms < 0) return '—';
@@ -91,6 +91,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
         case 'mark': return d.p.markPrice;
         case 'liq': return d.p.liqPrice ?? null;
         case 'upnl': return d.p.unrealizedPnl;
+        case 'upnlPct': return d.p.unrealizedPnlPct;
         case 'open': return d.opened;
         case 'age': return d.opened === null ? null : now - d.opened;
         case 'status': return d.st.text;
@@ -131,44 +132,46 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
 
       <div className="aged-table-title"><span>BOT Positions</span></div>
       <div className="table-wrap" role="region" tabIndex={0} aria-label="BOT positions table">
-        <table className="lp-table botpos-table" data-testid="botpos-table">
-          <colgroup>{[9, 3, 5, 8.5, 8.5, 7.5, 7.5, 9.5, 8, 4.5, 3.5, 8.5, 8, 3, 5.5].map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
+        <table className="lp-table botpos-table tb-unified-positions" data-testid="botpos-table">
           <thead><tr>
             <SortTh k="symbol" s={sort} onSort={toggleSort}>Symbol</SortTh>
-            <th className="c">Bybit</th>
+            <th>Owner</th>
             <SortTh k="size" s={sort} onSort={toggleSort}>Size</SortTh>
-            <SortTh k="value" s={sort} onSort={toggleSort}>Position Value</SortTh>
-            <SortTh k="entry" s={sort} onSort={toggleSort}>Average Entry</SortTh>
-            <SortTh k="mark" s={sort} onSort={toggleSort}>Mark Price</SortTh>
-            <SortTh k="liq" s={sort} onSort={toggleSort}>Liquidation</SortTh>
-            <SortTh k="upnl" s={sort} onSort={toggleSort}>Unrealized P&amp;L</SortTh>
-            <SortTh k="open" s={sort} onSort={toggleSort} title="When the bot first recorded this position as open">Open Time</SortTh>
+            <SortTh k="value" s={sort} onSort={toggleSort}>Value $</SortTh>
+            <SortTh k="entry" s={sort} onSort={toggleSort}>Entry</SortTh>
+            <SortTh k="mark" s={sort} onSort={toggleSort}>Mark</SortTh>
+            <SortTh k="liq" s={sort} onSort={toggleSort}>Liq</SortTh>
+            <SortTh k="tp" s={sort} onSort={toggleSort} title="Internal BOT take profit; no exchange stop loss">TP / SL</SortTh>
+            <SortTh k="upnl" s={sort} onSort={toggleSort}>P&amp;L $</SortTh>
+            <SortTh k="upnlPct" s={sort} onSort={toggleSort}>P&amp;L %</SortTh>
+            <SortTh k="open" s={sort} onSort={toggleSort}>Open Time</SortTh>
             <SortTh k="age" s={sort} onSort={toggleSort}>Age</SortTh>
-            <th title="No MART data in this version">Mart</th>
-            <SortTh k="status" s={sort} onSort={toggleSort} title="Managed = the bot is acting on this side now; Paused = waits until START">Status</SortTh>
-            <SortTh k="tp" s={sort} onSort={toggleSort} title="The bot's own TP (inside the bot, not a Bybit order): side's average entry ± TP %">TP</SortTh>
-            <th title="No stop-loss in this version">SL</th>
-            <th>Actions</th>
+            <th title="MART record">MART</th>
+            <th>Act</th>
           </tr></thead>
           <tbody>
-            {pg.slice.length === 0 ? <tr><td colSpan={15} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
+            {pg.slice.length === 0 ? <tr><td colSpan={14} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
               : pg.slice.map(({ p, st, tp, opened }) => (
                 <tr key={p.id} data-pos={p.id}>
-                  <td className="symbol" data-col="symbol"><SymbolSide symbol={p.symbol} leverage={p.leverage} side={p.side} /></td>
-                  <td className="c"><a className="bybit-icon" title={`Open ${p.symbol} on Bybit`} target="_blank" rel="noopener noreferrer" href={`https://www.bybit.com/trade/usdt/${p.symbol}`}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 10 14" /><path d="M20 13v7H4V4h7" /></svg></a></td>
+                  <td className="symbol" data-col="symbol"><span className="tb-sym-compact"><SymbolSide symbol={p.symbol} leverage={p.leverage} side={p.side}/>
+                    <a className="bybit-icon" title={`Open ${p.symbol} on Bybit Futures`} target="_blank" rel="noopener noreferrer"
+                       href={`https://www.bybit.com/trade/usdt/${p.symbol}`} aria-label={`Open ${p.symbol} on Bybit Futures`}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M14 4h6v6"/><path d="M20 4 10 14"/><path d="M20 13v7H4V4h7"/></svg>
+                    </a></span></td>
+                  <td data-col="owner"><span className="tb-cell-primary">BOT</span><span className={`tb-cell-secondary ${st.cls}`}>{st.text}</span></td>
                   <td data-col="size">{p.size}</td>
                   <td data-col="value">{num(p.notional, 2)}</td>
                   <td data-col="entry">{price(p.entryPrice)}</td>
                   <td data-col="mark">{price(p.markPrice)}</td>
-                  <td data-col="liq"><Liq value={p.liqPrice} fmt={price} /></td>
-                  <td className={tone(p.unrealizedPnl)} data-col="upnl">{typeof p.unrealizedPnl === 'number' ? `${p.unrealizedPnl > 0 ? '+' : ''}${p.unrealizedPnl.toFixed(4)}` : '—'}</td>
-                  <td data-col="open"><DateTime ts={opened} /></td>
+                  <td data-col="liq"><Liq value={p.liqPrice} fmt={price}/></td>
+                  <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? price(tp.price) : '—'}</span><span className="tb-cell-secondary">SL&nbsp; —</span></td>
+                  <td className={tone(p.unrealizedPnl)} data-col="upnl">{Number.isFinite(p.unrealizedPnl) ? `${p.unrealizedPnl > 0 ? '+' : ''}${num(p.unrealizedPnl, 4)}` : '—'}</td>
+                  <td className={tone(p.unrealizedPnlPct)} data-col="upnlPct">{Number.isFinite(p.unrealizedPnlPct) ? `${p.unrealizedPnlPct > 0 ? '+' : ''}${num(p.unrealizedPnlPct, 2)}%` : '—'}</td>
+                  <td data-col="open"><DateTime ts={opened}/></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
-                  <td className="na">—</td>
-                  <td className={st.cls} data-col="status">{st.text}</td>
-                  <td data-col="tp">{tp ? <>{price(tp.price)} <small className="tp-pct">{tp.pct}%</small></> : '—'}</td>
-                  <td className="na">—</td>
-                  <td><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} refresh={pumpOwnership.refresh} /><button type="button" className="row-act" onClick={onGoCycles}>Cycle</button></td>
+                  <td data-col="mart">{p.martTriggered ? 'MART' : '—'}</td>
+                  <td data-col="actions"><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} refresh={pumpOwnership.refresh}/><button type="button" className="row-act" onClick={onGoCycles}>Cycle</button></td>
                 </tr>
               ))}
           </tbody>
