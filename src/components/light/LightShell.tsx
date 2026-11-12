@@ -27,7 +27,7 @@ const TOP_GROUPS: {name:string; entry:string; tabs:{id:string;name:string}[]}[] 
     {id:'alert_history',name:'Alert History'},{id:'logs',name:'Logs'}]}
 ];
 
-// Approved light design: fixed sidebar + sticky 110px header with the eight account figures, START/STOP and Logout.
+// The original real trading controls and account figures remain operational beneath a unified top navigation.
 // Every figure comes from the server (WebSocket snapshot + REST); "—" when not available.
 
 const fmt = (v: number | null | undefined, d = 2) => (typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
@@ -181,6 +181,16 @@ export const LightShell: React.FC<{
               <button className="header-action-btn logout-btn" type="button" title="Logout" onClick={logout}>Logout</button>
             </div>
           </header>
+          <nav className="tb-sub-nav" aria-label={currentGroup.name + ' tabs'}>
+            {currentGroup.tabs.filter((t) => t.id !== 'symbol_trading' || activeTab === 'symbol_trading').map((t) => (
+              <a key={t.id} href={t.id === 'symbol_trading' ? window.location.pathname : PAGE_PATHS[t.id]}
+                className={activeTab === t.id ? 'active' : undefined}
+                aria-current={activeTab === t.id ? 'page' : undefined}
+                onClick={(e) => { if (t.id !== 'symbol_trading') linkClick(e, PAGE_PATHS[t.id]); }}>
+                {t.name}{t.id in counts && counts[t.id] !== null ? <small>{formatCount(counts[t.id], t.id === 'closed_positions')}</small> : null}
+              </a>
+            ))}
+          </nav>
           <div className="page-body" id="main-content" tabIndex={-1}>{children}</div>
           <LightModal open={modal !== null} title={modal === 'stop' ? 'Pause the bot' : 'Start the bot'} confirmLabel={modal === 'stop' ? 'Pause' : 'Start'} busy={busy} error={err} onClose={() => !busy && setModal(null)} onConfirm={confirmStartStop} testid="start-stop-modal">
             {modal === 'stop'
