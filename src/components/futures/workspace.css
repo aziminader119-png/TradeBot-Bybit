@@ -174,3 +174,17 @@
 .ft-protection-review input{width:100%;border:1px solid #424b5b;border-radius:6px;background:#20242d;color:#fff;padding:10px;font-size:15px}
 .ft-protection-review p{color:var(--muted);font-size:11px;line-height:1.55}
 @media(max-width:600px){.ft-workspace .ft-protection-controls{top:42px;right:6px;max-width:75%}}
+
+/* Compact independent hedge order confirmation; existing BUY/SELL palette. */
+.ft-workspace .ft-trade-buttons{grid-template-columns:1fr 1fr}
+.ft-workspace .ft-trade-buttons .both{grid-column:1/-1;background:#202a40;border:1px solid #1463ff;color:#e9edf3}
+.ft-workspace .ft-trade-buttons .both:hover{background:#273c64}
+.tb-hedge-dialog{width:min(650px,100%)!important;max-width:650px!important}
+.tb-hedge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tb-hedge-leg{min-width:0;border:1px solid #343b49;background:#101216;border-radius:8px;padding:14px}
+.tb-hedge-leg h3{font-size:15px;margin:0 0 12px}
+.tb-hedge-leg h3.green{color:#0bba74}.tb-hedge-leg h3.red{color:#ff4761}
+.tb-hedge-leg>div{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid #292e37;font-size:11px}
+.tb-hedge-leg>div span{color:#89919e}.tb-hedge-leg>div strong{color:#e9edf3;font-variant-numeric:tabular-nums}
+.tb-hedge-results{padding:8px 12px;background:#20242d;border-radius:6px;font-size:12px}
+@media(max-width:600px){.tb-hedge-grid{grid-template-columns:1fr}}
