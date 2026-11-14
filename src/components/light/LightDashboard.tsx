@@ -387,7 +387,8 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
       </div>
 
       </>}
-      {dashTab==='BOT Settings' && <div className="tb-v19-dash-admin">
+      {dashTab==='BOT Settings' && <>
+      <div className="tb-v19-dash-admin">
       <section className="section" id="dashboard-settings" data-testid="dashboard-security-card"><div className="legend">User &amp; Security</div>
         <div className="account-actions"><span className="account-status">Username, password and Google Authenticator 2FA{account.data ? <span style={{ color: 'rgb(173,177,184)' }}> · 2FA {account.data.twoFactor.enabled ? 'enabled' : 'off'}{account.data.username ? ' · user ' + account.data.username : ''}</span> : null}</span><a className="report-button" href="/Security" onClick={(e) => linkClick(e, '/Security')} data-testid="dashboard-security-link">Open Security</a></div>
       </section>
@@ -404,8 +405,7 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         )}
       </section>
 
-      {dashTab==='BOT Settings' && <>
-      </div>}
+      </div>
       <TradeAlertSettings/>
       </>}
       <LightModal open={tpConfirm !== null} title="Apply new take profit to existing cycles" confirmLabel="Apply" busy={bs('tp').saving} onClose={() => setTpConfirm(null)} onConfirm={confirmTp} testid="tp-confirm">
