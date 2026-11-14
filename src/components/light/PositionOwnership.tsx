@@ -81,11 +81,10 @@ export function PositionCloseButton({id,symbol,side,quantity,unrealizedPnl}:{
     return()=>window.removeEventListener('keydown',onKey);
   },[open,busy]);
   const close=async()=>{
-    // This endpoint always closes 100%; do not send a partial selection by mistake.
-    if(!full||busy||maxQty<=0)return;
+    if(busy||maxQty<=0||percentage<=0)return;
     setBusy(true);setError('');
     try{
-      const r=await postJson('/api/positions/'+encodeURIComponent(id)+'/close',{confirm:true});
+      const r=await postJson('/api/positions/'+encodeURIComponent(id)+'/close',{confirm:true,percentage});
       if(!r.ok||r.data?.success===false)throw Error(r.data?.error||r.data?.message||'Position close was rejected');
       setOpen(false);
     }catch(e:any){setError(e.message||'Close failed. Verify the exchange position before retrying.')}
@@ -121,10 +120,10 @@ export function PositionCloseButton({id,symbol,side,quantity,unrealizedPnl}:{
           <p>Estimated unrealized P&amp;L: <strong className={estimate!==null&&estimate<0?'red':'green'}>{estimateText}</strong></p>
           <small>Estimate uses the latest position P&amp;L; fees and slippage are not included.</small>
         </div>
-        {!full&&<p role="status" className="tb-v19-close-partial-notice">Partial closing is not supported by the current backend. Select 100% to confirm a market close. No order will be sent for a partial selection.</p>}
+        {!full&&<p role="status" className="tb-v19-close-partial-notice">The server will round the close amount down to Bybit quantity steps and reject any invalid remaining position. The actual close quantity may differ slightly.</p>}
         {error&&<p role="alert" className="tb-v19-close-error">{error}</p>}
         <div className="tb-v19-close-actions">
-          <button type="button" className="confirm" disabled={busy||!full||maxQty<=0} onClick={()=>void close()}>{busy?'Closing…':'Confirm Close'}</button>
+          <button type="button" className="confirm" disabled={busy||percentage<=0||maxQty<=0} onClick={()=>void close()}>{busy?'Closing…':'Confirm Close '+percentage+'%'}</button>
           <button type="button" className="cancel" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button>
         </div>
       </section>
