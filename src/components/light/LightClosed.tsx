@@ -19,7 +19,6 @@ export const LightClosed:React.FC=()=>{
       <FilterChoices<string> label="Side" value={side} options={[{value:'ALL',label:'All Sides'},{value:'Long',label:'BUY'},{value:'Short',label:'SHORT'}]} onChange={setSide}/>
       <FilterChoices<string> label="Owner" value={owner} options={[{value:'ALL',label:'All'},{value:'Bot',label:'BOT'},{value:'External',label:'Unmatched / external'}]} onChange={setOwner}/>
     </div>
-    <p className="lp-source-note">Saved Bybit closed-P&L history; new and revised records update automatically without reloading the full history. Unmatched means no local bot order ID matched.</p>
     {read.error&&<div className="lp-error" role="alert">{read.error}</div>}
     <ReportTable rows={out} columns={cols} title="CLOSED POSITIONS" empty={read.loading?'Loading Bybit history…':read.error?'Bybit history unavailable.':'No closed positions in this selection.'}/>
   </div>;
