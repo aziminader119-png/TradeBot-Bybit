@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { LightModal, postJson } from './Modal.tsx';
+import { postJson } from './Modal.tsx';
+import {createPortal} from 'react-dom';
+import {useDialogFocus} from './useDialogFocus.ts';
 import { num, price } from './table.tsx';
 
 type Side = 'Buy' | 'Sell';
@@ -18,6 +20,7 @@ export function ManualOrderDialog({ symbol, side, initialValue, enabled, onClose
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState('');
+  const dialogRef=useDialogFocus(true,sending,onClose);
   const sent = useRef(false);
   const requestId = useRef(crypto.randomUUID());
 
@@ -85,18 +88,34 @@ export function ManualOrderDialog({ symbol, side, initialValue, enabled, onClose
     ['Time in Force', 'Immediate-Or-Cancel'],
     ['Opening Fee (estimated)', quote ? num(quote.quote.estOpenFee, 6) + ' USDT' : '—'],
   ];
-  return <LightModal open title={'Market ' + (side === 'Buy' ? 'Buy ' : 'Short ') + symbol} busy={sending} error={error}
-    onClose={onClose} onConfirm={quote && enabled && !done && !sent.current ? () => void confirm() : undefined}
-    confirmLabel={side === 'Buy' ? 'Confirm BUY' : 'Confirm SHORT'} testid="manual-futures-confirmation">
-    <div className="manual-order-inputs">
-      <div className="manual-order-toggle" role="group" aria-label="Order amount units"><button type="button" className={mode === 'value' ? 'active' : ''} disabled={sending} onClick={() => { setMode('value'); setInput(''); }}>Value (USDT)</button><button type="button" className={mode === 'qty' ? 'active' : ''} disabled={sending} onClick={() => { setMode('qty'); setInput(''); }}>Quantity</button></div>
-      <label>{mode === 'value' ? 'Position Value (USDT)' : 'Order Quantity (' + symbol.replace(/USDT$/, '') + ')'}<input type="number" min="0" step="any" value={input} disabled={sending || Boolean(done)} onChange={e => setInput(e.target.value)} /></label>
-      <button type="button" className="manual-minimum" disabled={minQty === null || Boolean(done)} onClick={chooseMinimum}>Use smallest valid order</button>
-      <small>Bybit minimum: {minQty ?? '—'} {symbol.replace(/USDT$/, '')} · approximately {minValue === null ? '—' : num(minValue, 6)} USDT. The server checks a fresh price and lot size again.</small>
-    </div>
-    <div className="manual-order-summary">{rows.map(([label, output]) => <div key={label}><span>{label}</span><strong>{output}</strong></div>)}</div>
-    <p className="ft-muted">{loading ? 'Checking order with Bybit…' : 'Single external position. No Pump or BOT strategy is automatically enabled.'}</p>
-    {!enabled && <p className="red">REAL trading is not enabled. Review only; no order can be sent.</p>}
-    {done && <p className="green" role="status">{done}</p>}
-  </LightModal>;
+  const isBuy=side==='Buy';
+  return createPortal(<div className="tb-v19-order-backdrop" role="presentation">
+    <section ref={dialogRef} tabIndex={-1} className="tb-v19-order-dialog" role="dialog" aria-modal="true" aria-label={`Market ${isBuy?'Buy':'Sell'} ${symbol}`} data-testid="manual-futures-confirmation">
+      <div className="tb-v19-order-title">
+        <h2><span className={isBuy?'buy':'sell'}>Market {isBuy?'Buy':'Sell'}</span> {symbol}</h2>
+        <button type="button" disabled={sending} onClick={onClose} aria-label="Close order dialog">×</button>
+      </div>
+      <div className="tb-v19-order-control">
+        <div className="tb-v19-order-modes" role="group" aria-label="Order amount units">
+          <button type="button" className={mode==='value'?'selected':''} disabled={sending} onClick={()=>{setMode('value');setInput('');}}>Value (USDT)</button>
+          <button type="button" className={mode==='qty'?'selected':''} disabled={sending} onClick={()=>{setMode('qty');setInput('');}}>Quantity</button>
+        </div>
+        <label className="tb-v19-order-field">{mode==='value'?'Position Value (USDT)':`Order Quantity (${symbol.replace(/USDT$/,'')})`}
+          <input type="number" min="0" step="any" value={input} disabled={sending||Boolean(done)} onChange={e=>setInput(e.target.value)} />
+        </label>
+        <div className="tb-v19-order-min"><button type="button" disabled={minQty===null||Boolean(done)||sending} onClick={chooseMinimum}>Minimum order</button>
+          <span>Min. {minQty??'—'} {symbol.replace(/USDT$/,'')} · ≈ {minValue===null?'—':num(minValue,4)} USDT</span></div>
+      </div>
+      <div className="tb-v19-order-summary">{rows.map(([label,output])=><div key={label}><span>{label}</span><strong>{output}</strong></div>)}</div>
+      <div className="tb-v19-order-risk">A real market order is placed only after confirmation. Size, leverage and execution conditions are checked on the server.</div>
+      {loading&&<div className="tb-v19-order-msg">Checking live market quote…</div>}
+      {!enabled&&<div className="tb-v19-order-msg warn">REAL trading is disabled. No order can be sent.</div>}
+      {error&&<div className="tb-v19-order-msg error" role="alert">{error}</div>}
+      {done&&<div className="tb-v19-order-msg success" role="status">{done}</div>}
+      <div className="tb-v19-order-actions">
+        <button className={isBuy?'buy':'sell'} type="button" disabled={!quote||!enabled||Boolean(done)||sent.current||sending||loading} onClick={()=>void confirm()}>{sending?'Submitting…':isBuy?'Confirm BUY':'Confirm SELL'}</button>
+        <button className="cancel" type="button" disabled={sending} onClick={onClose}>Cancel</button>
+      </div>
+    </section>
+  </div>,document.body);
 }
