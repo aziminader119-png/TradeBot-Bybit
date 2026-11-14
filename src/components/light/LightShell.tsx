@@ -151,6 +151,34 @@ export const LightShell: React.FC<{
                <button className="tb-v19-logout" type="button" title="Logout" onClick={logout}>Logout</button>
              </div>
            </header>
+           <div className="tb-v19-page-top">
+             <div className="tb-v19-title-area">
+               <h1>{currentGroup.name === 'Dashboard' ? 'Dashboard' : currentGroup.name === 'Symbols' && activeTab === 'symbol_trading' ? title : currentGroup.name}</h1>
+               <span>{currentGroup.name === 'Positions' ? 'All strategies. One workspace.'
+                 : currentGroup.name === 'Symbols' ? 'Futures markets and individual symbol trading.'
+                 : currentGroup.name === 'Strategies' ? 'BOT cycles, Pump Short and Dump Buy.'
+                 : currentGroup.name === 'Analytics' ? 'Performance, executions and records.'
+                 : currentGroup.name === 'Settings' ? 'Security, alerts and system preferences.'
+                 : 'TradeBot Pro control center.'}</span>
+             </div>
+             <div className="tb-v19-page-actions">
+               <span className={'tb-v19-connection '+health.tone}>{health.label}</span>
+               <button type="button" className="tb-v19-toolbutton" onClick={onRefresh}>↻ Refresh</button>
+               <button type="button" className="tb-v19-toolbutton" onClick={() => {
+                 const table = document.querySelector<HTMLTableElement>('#main-content table');
+                 if (!table) return;
+                 const csv = Array.from(table.querySelectorAll('tr')).map(row =>
+                   Array.from(row.querySelectorAll('th,td')).map(cell =>
+                     '"' + (cell.textContent || '').trim().replace(/"/g, '""') + '"').join(',')
+                 ).join('\\r\\n');
+                 const blob = new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+                 const url=URL.createObjectURL(blob);
+                 const anchor=document.createElement('a');anchor.href=url;
+                 anchor.download='tradebot-'+activeTab+'.csv';anchor.click();
+                 setTimeout(()=>URL.revokeObjectURL(url),1000);
+               }} title="Export currently displayed table rows to CSV">↧ Export CSV</button>
+             </div>
+           </div>
            <div className="tb-v19-account-strip" data-testid="header-stats">
              <div className="tb-v19-account-cell"><small>BOT Positions</small><strong>{counts.bot_positions ?? '—'}</strong></div>
              <div className="tb-v19-account-cell"><small>External</small><strong>{counts.external_positions ?? '—'}</strong></div>
