@@ -6,6 +6,7 @@ const OpenAlgoFutures=lazy(()=>import('../futures/OpenAlgoFutures.tsx'));
 import {useFuturesBook} from '../futures/futuresStream.ts';
 import {LightPositionLists} from './LightPositionLists.tsx';
 import {ManualOrderDialog} from './ManualOrderDialog.tsx';
+import {HedgeOrderDialog} from './HedgeOrderDialog.tsx';
 import {DateTime} from './format.tsx';
 import {price,num,signedPct} from './table.tsx';
 import {useRead,refreshReportRead} from './reports.tsx';
@@ -17,7 +18,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
  const contract=useRead<{instrument:any}>('/api/futures/instrument/'+encodeURIComponent(symbol)+'?environment='+encodeURIComponent(state?.settings?.environment||'mainnet')+'&entity='+encodeURIComponent(state?.settings?.apiHost||'api.bybit.com'),300000);
  const protections=useRead<{symbol:string;checkedAt:number;positions:ExchangeChartPosition[]}>('/api/futures/positions/'+encodeURIComponent(symbol)+'?environment='+encodeURIComponent(state?.settings?.environment||'mainnet')+'&entity='+encodeURIComponent(state?.settings?.apiHost||'api.bybit.com'),10000);
  const book=useFuturesBook(symbol),info=contract.data?.instrument,ticker=book.ticker;
- const [value,setValue]=useState('50'),[orderSide,setOrderSide]=useState<'Buy'|'Sell'|null>(null),[chartError,setChartError]=useState(''),[now,setNow]=useState(Date.now());
+ const [value,setValue]=useState('50'),[orderSide,setOrderSide]=useState<'Buy'|'Sell'|'Both'|null>(null),[chartError,setChartError]=useState(''),[now,setNow]=useState(Date.now());
  const [bookMode,setBookMode]=useState<'stacked'|'split'|'buy'|'sell'>('stacked');
  const [summaryTarget,setSummaryTarget]=useState<HTMLDivElement|null>(null);
  const [protectionEdit,setProtectionEdit]=useState<{side:'Buy'|'Sell';field:'takeProfit'|'stopLoss';previous:number;size:number}|null>(null);
@@ -67,7 +68,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
    <section className="ft-chart-shell"><div className="ft-protection-controls" aria-label="Chart TP and SL editor">{protections.data?.positions?.filter(p=>p.size>0).flatMap(p=>[<button type="button" key={p.side+'-tp'} onClick={()=>openProtection(p,'takeProfit')} title={'Confirm a new TP for '+p.side}>{p.side} TP {p.takeProfit?price(p.takeProfit):'Set'}</button>,<button type="button" key={p.side+'-sl'} onClick={()=>openProtection(p,'stopLoss')} title={'Confirm a new SL for '+p.side}>{p.side} SL {p.stopLoss?price(p.stopLoss):'Set'}</button>])}</div>{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays}/></Suspense></section>
    <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)}/>
     <div className="ft-order-calc"><span>Maximum leverage <b>{lev?lev+'x':'—'}</b></span><span>Est. initial margin <b>{initial!==null?num(initial,4)+' USDT':'—'}</b></span><span>Free margin <b>{state?.wallet?.valuesAvailable?num(state.wallet.availableBalance,4)+' USDT':'—'}</b></span></div>
-    <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button></div>
+    <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button><button type="button" className="both" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Both')}>BUY + SELL</button></div>
     
     {!real&&<p className="ft-muted">Preview is read-only. Real execution requires the bot's existing Real / START controls.</p>}
     <div className="ft-wallet">{field('Wallet Balance',state?.wallet?.valuesAvailable?num(usdt,4):'—')}{field('Total Equity',state?.wallet?.valuesAvailable?num(state.wallet.totalEquity,4):'—')}{field('Used Margin',state?.wallet?.valuesAvailable?num(state.wallet.usedMargin,4):'—')}{field('Unrealized P&L',state?.wallet?.valuesAvailable?<span className={state.wallet.unrealizedPnl<0?'red':state.wallet.unrealizedPnl>0?'green':''}>{num(state.wallet.unrealizedPnl,4)}</span>:'—')}</div>
@@ -98,7 +99,8 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
     <p>Only Confirm sends the new protection to Bybit. Cancel leaves the exchange position unchanged.</p>
    </div>}
   </LightModal>
-  {orderSide && <ManualOrderDialog key={symbol+orderSide} symbol={symbol} side={orderSide} initialValue={Number(value)} enabled={real} onClose={()=>setOrderSide(null)} onDone={onRefresh}/>}
+  {orderSide==='Both'&&<HedgeOrderDialog key={symbol+'Both'} symbol={symbol} initialValue={Number(value)} enabled={real} onClose={()=>setOrderSide(null)} onDone={onRefresh}/>}
+  {(orderSide==='Buy'||orderSide==='Sell')&&<ManualOrderDialog key={symbol+orderSide} symbol={symbol} side={orderSide} initialValue={Number(value)} enabled={real} onClose={()=>setOrderSide(null)} onDone={onRefresh}/>}
  </div>;
 };
 
