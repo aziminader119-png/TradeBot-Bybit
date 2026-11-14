@@ -176,7 +176,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
 
   return (
     <div className="workspace lp-symbols" data-testid="symbols-page">
-      <section className="lp-panel symbols-overview" data-testid="symbols-overview">
+      <details className="tb-v19-symbols-overview" data-testid="symbols-overview"><summary>Market overview <span>Live symbol &amp; funding statistics</span></summary>
         <div className="section-title">Symbol Overview</div>
         <div className="overview-grid">
           <div className="overview-card"><div className="k">Total Symbols</div><div className="v" data-testid="ov-total">{rows ? `${rows.length} symbols` : '—'}</div></div>
@@ -186,7 +186,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
           <div className="overview-card"><div className="k">Not Managed</div><div className="v" data-testid="ov-none">{rows ? overview.NONE : '—'}</div></div>
           <div className="overview-card"><div className="k">Avg Funding</div><div className="v orange" data-testid="ov-funding">{fundingTxt(overview.avgFunding)}</div></div>
         </div>
-      </section>
+      </details>
 
       <section className="lp-panel symbols-panel">
         {error && <div className="lp-error" data-testid="symbols-error" role="alert">Symbol list from Bybit unavailable: {error} <button type="button" onClick={()=>refreshReportRead('/api/symbols')}>Retry</button></div>}
@@ -198,7 +198,6 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
         </div>
         {historyBusy && <div role="status" className="ft-muted">Loading historical changes: {historyProgress.done} / {historyProgress.total} symbols…</div>}
         {historyError && <div role="alert" className="lp-error">{historyError} — click the column again to retry.</div>}
-        <div className="aged-table-title"><span>All Symbols</span></div>
         <div className="table-wrap" role="region" tabIndex={0} aria-label="Symbols table">
           <table className="lp-table symbols-table tb-unified-symbols" data-testid="symbols-table">
 
