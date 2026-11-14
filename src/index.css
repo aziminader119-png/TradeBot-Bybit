@@ -843,3 +843,58 @@ html{scrollbar-color:#474750 #101014}
  .page-dashboard.tb-unified-shell .tb-v19-account-strip{grid-template-columns:repeat(2,minmax(0,1fr))!important;margin:0 9px 12px!important}
  .page-dashboard.tb-unified-shell .tb-v19-account-cell{padding:12px!important}
 }
+
+
+/* V19 clean table surfaces — no extra inherited legacy section headers */
+.page-dashboard.tb-unified-shell .tb-v19-symbols-overview{
+ margin:0 0 12px!important;background:#161920;border:1px solid #292e37;
+ border-radius:7px;overflow:hidden!important;
+}
+.page-dashboard.tb-unified-shell .tb-v19-symbols-overview>summary{
+ display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+ min-height:43px;padding:0 16px;color:#e9edf3;font-size:12px;font-weight:700;
+}
+.page-dashboard.tb-unified-shell .tb-v19-symbols-overview>summary>span{
+ color:#89919e;font-size:10px;font-weight:500;
+}
+.page-dashboard.tb-unified-shell .tb-v19-symbols-overview .section-title{display:none!important}
+.page-dashboard.tb-unified-shell .tb-v19-symbols-overview .overview-grid{
+ border:0!important;border-top:1px solid #292e37!important;
+ border-radius:0!important;margin:0!important;
+}
+.page-dashboard.tb-unified-shell .lp-symbols{
+ padding:0!important;background:transparent!important;border:0!important;border-radius:0!important;
+}
+.page-dashboard.tb-unified-shell .lp-symbols .symbols-panel{
+ border:1px solid #292e37!important;border-radius:7px!important;
+ background:#161920!important;padding:0!important;overflow:hidden!important;
+}
+.page-dashboard.tb-unified-shell .lp-botpos{
+ padding:0!important;background:#161920!important;
+ border:1px solid #292e37!important;border-radius:7px!important;overflow:hidden!important;
+}
+.page-dashboard.tb-unified-shell .lp-botpos .page-summary{
+ margin:0!important;border:0!important;border-bottom:1px solid #292e37!important;
+ border-radius:0!important;
+}
+.page-dashboard.tb-unified-shell .lp-botpos .lp-toolbar{border-top:0!important}
+.page-dashboard.tb-unified-shell .lp-symbols .lp-toolbar{border-top:0!important}
+.page-dashboard.tb-unified-shell .lp-botpos .lp-sync-note{
+ background:#161920!important;border:0!important;
+ border-bottom:1px solid #292e37!important;padding:7px 15px!important;
+ margin:0!important;color:#89919e!important;font-size:10px!important;
+}
+.page-dashboard.tb-unified-shell .lp-botpos .table-wrap,
+.page-dashboard.tb-unified-shell .lp-symbols .table-wrap{width:100%!important;overflow-x:auto!important}
+.page-dashboard.tb-unified-shell .lp-botpos .tb-paging-row,
+.page-dashboard.tb-unified-shell .lp-symbols .tb-paging-row{
+ min-height:52px!important;padding:11px 15px!important;border-top:1px solid #292e37!important;
+ background:#161920!important;margin:0!important;box-shadow:none!important;
+}
+.page-dashboard.tb-unified-shell .lp-botpos .row-act{
+ border:1px solid #394454!important;background:#1d242d!important;color:#b8c7db!important;
+ padding:5px 9px!important;
+}
+.page-dashboard.tb-unified-shell .lp-symbols .symbol-trade-actions .trade{
+ border-radius:4px!important;letter-spacing:0!important;font-size:10px!important;
+}
