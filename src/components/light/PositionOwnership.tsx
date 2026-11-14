@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { postJson } from './Modal.tsx';
+import {createPortal} from 'react-dom';
+import {useDialogFocus} from './useDialogFocus.ts';
 
 export type PumpOwnership = { id: string; symbol: string; status: string };
 
@@ -67,6 +69,7 @@ export function PositionCloseButton({id,symbol,side,quantity,unrealizedPnl,owner
   const [percentage,setPercentage]=useState(100);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const dialog=useDialogFocus(open,busy,()=>setOpen(false));
   const maxQty=Number.isFinite(quantity)&&quantity>0?quantity:0;
  const onlyFull=owner==='bot';
   const full=percentage===100;
@@ -93,8 +96,8 @@ export function PositionCloseButton({id,symbol,side,quantity,unrealizedPnl,owner
   };
   return <>
     <button type="button" className="tb-v19-close-btn" onClick={()=>{setError('');setPercentage(100);setOpen(true)}} aria-label={`Close ${symbol} ${side} position`}>Close</button>
-    {open&&<div className="tb-v19-close-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOpen(false)}}>
-      <section className="tb-v19-close-dialog" role="dialog" aria-modal="true" aria-label={`Market close ${symbol} ${side}`}>
+    {open&&createPortal(<div className="tb-v19-close-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOpen(false)}}>
+      <section ref={dialog} tabIndex={-1} className="tb-v19-close-dialog" role="dialog" aria-modal="true" aria-label={`Market close ${symbol} ${side}`}>
         <div className="tb-v19-close-heading">
           <h3>Market Close</h3>
           <button type="button" className="tb-v19-close-x" disabled={busy} onClick={()=>setOpen(false)} aria-label="Dismiss close dialog">×</button>
@@ -129,6 +132,6 @@ export function PositionCloseButton({id,symbol,side,quantity,unrealizedPnl,owner
           <button type="button" className="cancel" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button>
         </div>
       </section>
-    </div>}
+    </div>,document.body)}
   </>;
 }
