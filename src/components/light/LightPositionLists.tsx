@@ -117,7 +117,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
         case 'mark': return d.p.markPrice;
         case 'liq': return d.p.liqPrice ?? null;
         case 'upnl': return d.p.unrealizedPnl;
-        case 'upnlPct': return d.p.unrealizedPnlPct;
+        case 'upnlPct': return movePct(d.p);
         case 'open': return d.opened;
         case 'age': return d.opened === null ? null : now - d.opened;
         case 'status': return d.st.text;
@@ -174,7 +174,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
             <SortTh k="liq" s={sort} onSort={toggleSort}>Liq</SortTh>
             <SortTh k="tp" s={sort} onSort={toggleSort} title="Top: target price; bottom: existing stop loss (not available when blank)">TP / SL</SortTh>
             <SortTh k="upnl" s={sort} onSort={toggleSort}>P&amp;L $</SortTh>
-            <SortTh k="upnlPct" s={sort} onSort={toggleSort}>P&amp;L %</SortTh>
+            <SortTh k="upnlPct" s={sort} onSort={toggleSort} title="Unleveraged price move relative to position direction, not exchange ROI">P&amp;L %</SortTh>
             <SortTh k="open" s={sort} onSort={toggleSort}>Open Time</SortTh>
             <SortTh k="age" s={sort} onSort={toggleSort}>Age</SortTh>
             {risk && <SortTh k="risk" s={sort} onSort={toggleSort} title={view === 'margin' ? 'Bybit initial margin (estimate when marked)' : 'Unleveraged price move'}>{view === 'margin' ? 'Margin $' : 'Move %'}</SortTh>}
@@ -201,7 +201,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
                   <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? price(tp.price) : '—'}</span>
                     <span className="tb-cell-secondary">SL&nbsp; —</span></td>
                   <td className={tone(p.unrealizedPnl)} data-col="upnl">{Number.isFinite(p.unrealizedPnl) ? `${p.unrealizedPnl > 0 ? '+' : ''}${num(p.unrealizedPnl, 4)}` : '—'}</td>
-                  <td className={tone(p.unrealizedPnlPct)} data-col="upnlPct">{Number.isFinite(p.unrealizedPnlPct) ? `${p.unrealizedPnlPct > 0 ? '+' : ''}${num(p.unrealizedPnlPct, 2)}%` : '—'}</td>
+                  <td className={tone(movePct(p))} data-col="upnlPct">{movePct(p) === null ? '—' : `${movePct(p)! > 0 ? '+' : ''}${num(movePct(p), 2)}%`}</td>
                   <td data-col="open"><DateTime ts={opened} /></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
                   {risk && <td className={view === 'margin' ? '' : tone(movePct(p))} data-col="risk">{view === 'margin' ? <MarginCell p={p} /> : num(movePct(p), 2) + '%'}</td>}
