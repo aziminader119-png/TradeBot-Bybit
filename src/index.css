@@ -808,3 +808,38 @@ html{scrollbar-color:#474750 #101014}
  .page-dashboard.tb-unified-shell .tb-v19-dash-kpi-grid>div:nth-child(3n){border-right:1px solid #292e37}
  .page-dashboard.tb-unified-shell .tb-v19-dash-kpi-grid>div:nth-child(2n){border-right:0}
 }
+
+
+/* Exact six-metric V19 ribbon on every main page */
+.page-dashboard.tb-unified-shell .tb-v19-account-strip{
+ display:grid!important;grid-template-columns:repeat(6,minmax(0,1fr))!important;min-height:80px!important;
+ margin:0 22px 18px!important;overflow-x:auto!important;
+}
+.page-dashboard.tb-unified-shell .tb-v19-account-cell{
+ min-height:80px!important;padding:14px 20px 12px!important;gap:5px!important;
+}
+.page-dashboard.tb-unified-shell .tb-v19-account-cell small{
+ color:#89919e!important;font-size:10px!important;font-weight:620!important;letter-spacing:.15px;
+}
+.page-dashboard.tb-unified-shell .tb-v19-account-cell strong{
+ font-size:19px!important;font-weight:760!important;letter-spacing:-.2px!important;
+}
+.page-dashboard.tb-unified-shell .tb-v19-account-cell strong.green{color:#0bba74!important}
+.page-dashboard.tb-unified-shell .tb-v19-account-cell strong.red{color:#ff4761!important}
+.page-dashboard.tb-unified-shell .tb-v19-account-cell strong.orange{color:#ff9c2e!important}
+.page-dashboard.tb-unified-shell .tb-v19-account-cell>span{
+ display:block;color:#687484;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.page-dashboard.tb-unified-shell .tb-v19-account-strip>span[hidden]{display:none!important}
+.page-dashboard.tb-unified-shell .tb-sub-nav.tb-dashboard-shell-tabs{display:none!important}
+.page-dashboard.tb-unified-shell .tb-v19-dash-tabs{
+ border-top:1px solid #292e37!important;border-radius:7px!important;
+ margin-top:0!important;
+}
+@media(max-width:1100px){
+ .page-dashboard.tb-unified-shell .tb-v19-account-strip{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+@media(max-width:640px){
+ .page-dashboard.tb-unified-shell .tb-v19-account-strip{grid-template-columns:repeat(2,minmax(0,1fr))!important;margin:0 9px 12px!important}
+ .page-dashboard.tb-unified-shell .tb-v19-account-cell{padding:12px!important}
+}
