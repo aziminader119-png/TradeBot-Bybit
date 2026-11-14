@@ -107,7 +107,7 @@ futuresRouter.post('/hedge-order',async(req,res)=>{
   const quoteBuy=await manualFuturesQuote(engine,db,symbol,'Buy',value);
   const quoteSell=await manualFuturesQuote(engine,db,symbol,'Sell',value);
   const wallet=await client.getWalletBalance();
-  const totalCost=quoteBuy.quote.estMargin+quoteBuy.quote.estOpenFee+quoteSell.quote.estMargin+quoteSell.quote.estOpenFee;
+  const totalCost=quoteBuy.quote.estMargin+(quoteBuy.quote.estOpenFee||0)+quoteSell.quote.estMargin+(quoteSell.quote.estOpenFee||0);
   if(!(Number.isFinite(totalCost)&&totalCost>0&&totalCost<=wallet.availableBalance))throw Error('Not enough verified free margin for BOTH hedge legs and fees');
   for(const side of ['Buy','Sell'] as const){
    try{
