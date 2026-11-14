@@ -113,7 +113,8 @@ futuresRouter.post('/protection',async(req,res)=>{
    const matches=positions.filter(p=>p.symbol===symbol&&p.side===side&&Number(p.positionIdx)===idx&&Number(p.size)>0);
    if(matches.length!==1)throw Error('Exactly one verified open hedge position is required');
    const current=matches[0],entry=Number(current.avgPrice||current.entryPrice);
-   const mark=Number((await client.getTickers(symbol))[symbol]?.markPrice);
+   const rawTicker=(await client.getTickers(symbol))[symbol] as Record<string,unknown>|undefined;
+   const mark=Number(rawTicker?.markPrice);
    if(!(Number.isFinite(mark)&&mark>0&&Number.isFinite(entry)&&entry>0))throw Error('Fresh mark and entry prices required');
    const old=Number(current[field]||0);
    if(!Number.isFinite(old)||Math.abs(old-expected)>Math.max(1e-8,Math.abs(expected)*1e-8))throw Error('TP/SL changed on Bybit. Refresh before editing again');
