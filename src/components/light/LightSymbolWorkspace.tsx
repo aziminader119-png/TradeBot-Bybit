@@ -8,7 +8,8 @@ import {LightPositionLists} from './LightPositionLists.tsx';
 import {ManualOrderDialog} from './ManualOrderDialog.tsx';
 import {DateTime} from './format.tsx';
 import {price,num,signedPct} from './table.tsx';
-import {useRead} from './reports.tsx';
+import {useRead,refreshReportRead} from './reports.tsx';
+import {LightModal,postJson} from './Modal.tsx';
 import '../futures/workspace.css';
 export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:string;onSymbol:(s:string)=>void;onRefresh:()=>void;onGoCycles:()=>void;onGoSymbols:()=>void}>=({state,symbol,onSymbol,onRefresh,onGoCycles,onGoSymbols})=>{
  // Reuse the authenticated live state instead of polling the same account again.
@@ -19,6 +20,10 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
  const [value,setValue]=useState('50'),[orderSide,setOrderSide]=useState<'Buy'|'Sell'|null>(null),[chartError,setChartError]=useState(''),[now,setNow]=useState(Date.now());
  const [bookMode,setBookMode]=useState<'stacked'|'split'|'buy'|'sell'>('stacked');
  const [summaryTarget,setSummaryTarget]=useState<HTMLDivElement|null>(null);
+ const [protectionEdit,setProtectionEdit]=useState<{side:'Buy'|'Sell';field:'takeProfit'|'stopLoss';previous:number;size:number}|null>(null);
+ const [protectionPrice,setProtectionPrice]=useState('');
+ const [protectionBusy,setProtectionBusy]=useState(false);
+ const [protectionError,setProtectionError]=useState('');
  useEffect(()=>{const id=setInterval(()=>setNow(Date.now()),1000);const onError=(e:any)=>{if(e.detail?.symbol===symbol)setChartError(e.detail.message);};const onOK=(e:any)=>{if(e.detail?.symbol===symbol)setChartError('');};window.addEventListener('ft-chart-ok',onOK);window.addEventListener('ft-chart-error',onError);return()=>{clearInterval(id);window.removeEventListener('ft-chart-ok',onOK);window.removeEventListener('ft-chart-error',onError);};},[symbol]);
  const connected=state?.connection?.state==='CONNECTED',real=state?.systemMetrics?.tradingMode==='REAL'&&state?.systemMetrics?.tradingState==='RUNNING';
  const last=ticker?.lastPrice,lev=info?.maxLeverage,initial=Number(value)>0&&lev?Number(value)/lev:null;
@@ -32,6 +37,24 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
  const fundingAt=ticker?.nextFundingTime,remaining=fundingAt?Math.max(0,Math.floor((fundingAt-now)/1000)):null;
  const fundingClock=remaining===null?'—':[Math.floor(remaining/3600),Math.floor(remaining/60)%60,remaining%60].map(n=>String(n).padStart(2,'0')).join(':');
  const overlays=positionLines(symbol,state,protections.data?.symbol===symbol&&Date.now()-protections.data.checkedAt<30000?protections.data.positions:null,ticker?.markPrice);
+ const openProtection=(p:ExchangeChartPosition,field:'takeProfit'|'stopLoss')=>{
+  setProtectionEdit({side:p.side,field,previous:Number(p[field]||0),size:p.size});
+  setProtectionPrice(p[field]?String(p[field]):'');setProtectionError('');
+ };
+ const protectionUrl='/api/futures/positions/'+encodeURIComponent(symbol)+'?environment='+encodeURIComponent(state?.settings?.environment||'mainnet')+'&entity='+encodeURIComponent(state?.settings?.apiHost||'api.bybit.com');
+ const confirmProtection=async()=>{
+  const edit=protectionEdit,requested=Number(protectionPrice);
+  if(!edit||protectionBusy)return;
+  if(!real){setProtectionError('REAL trading must be explicitly armed before modifying Bybit protections.');return;}
+  if(!Number.isFinite(requested)||requested<=0){setProtectionError('Enter a positive TP/SL price.');return;}
+  setProtectionBusy(true);setProtectionError('');
+  try{
+   const response=await postJson('/api/futures/protection',{symbol,side:edit.side,field:edit.field,price:requested,expectedPrice:edit.previous,requestId:crypto.randomUUID(),confirm:true});
+   if(!response.ok)throw Error(response.data?.error||'Exchange did not confirm the protection change');
+   setProtectionEdit(null);refreshReportRead(protectionUrl);onRefresh();
+  }catch(e:any){setProtectionError(e?.message||'Protection update failed. The old line remains until Bybit confirms.');}
+  finally{setProtectionBusy(false)}
+ };
  const field=(name:string,v:React.ReactNode)=><div className="ft-stat"><small>{name}</small><strong>{v}</strong></div>;
  return <div className="ft-workspace" data-testid="futures-workspace">
   <div className="ft-market-header"><div className="ft-symbol"><h2>{symbol}</h2><span>USDT Perpetual · {lev?lev+'x max':'—'}</span></div><div className={'ft-last '+priceTone}>{price(last)}</div>
@@ -41,7 +64,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   </div>
 
   <div className="ft-terminal-grid">
-   <section className="ft-chart-shell">{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays}/></Suspense></section>
+   <section className="ft-chart-shell"><div className="ft-protection-controls" aria-label="Chart TP and SL editor">{protections.data?.positions?.filter(p=>p.size>0).flatMap(p=>[<button type="button" key={p.side+'-tp'} onClick={()=>openProtection(p,'takeProfit')} title={'Confirm a new TP for '+p.side}>{p.side} TP {p.takeProfit?price(p.takeProfit):'Set'}</button>,<button type="button" key={p.side+'-sl'} onClick={()=>openProtection(p,'stopLoss')} title={'Confirm a new SL for '+p.side}>{p.side} SL {p.stopLoss?price(p.stopLoss):'Set'}</button>])}</div>{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays}/></Suspense></section>
    <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)}/>
     <div className="ft-order-calc"><span>Maximum leverage <b>{lev?lev+'x':'—'}</b></span><span>Est. initial margin <b>{initial!==null?num(initial,4)+' USDT':'—'}</b></span><span>Free margin <b>{state?.wallet?.valuesAvailable?num(state.wallet.availableBalance,4)+' USDT':'—'}</b></span></div>
     <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button></div>
@@ -65,6 +88,16 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   </div>
   <LightPositionLists key={symbol} view="all" summaryTarget={summaryTarget} fixedSymbol={symbol} state={state} onGoCycles={onGoCycles}/>
   <SymbolStatistics key={symbol} symbol={symbol} state={state}/>
+  <LightModal open={Boolean(protectionEdit)} title={protectionEdit?'Confirm '+(protectionEdit.field==='takeProfit'?'Take Profit':'Stop Loss')+' change':''} busy={protectionBusy} onClose={()=>{if(!protectionBusy)setProtectionEdit(null)}} onConfirm={()=>void confirmProtection()} confirmLabel="Confirm TP/SL" error={protectionError} testid="protection-confirmation">
+   {protectionEdit&&<div className="ft-protection-review">
+    <div><span>Symbol</span><strong>{symbol}</strong></div>
+    <div><span>Position</span><strong>{protectionEdit.side} · Qty {protectionEdit.size}</strong></div>
+    <div><span>Type</span><strong>{protectionEdit.field==='takeProfit'?'Take Profit':'Stop Loss'}</strong></div>
+    <div><span>Previous price</span><strong>{protectionEdit.previous||'Not set'}</strong></div>
+    <label>New price <input type="number" min="0" step="any" value={protectionPrice} disabled={protectionBusy} onChange={e=>setProtectionPrice(e.target.value)}/></label>
+    <p>Only Confirm sends the new protection to Bybit. Cancel leaves the exchange position unchanged.</p>
+   </div>}
+  </LightModal>
   {orderSide && <ManualOrderDialog key={symbol+orderSide} symbol={symbol} side={orderSide} initialValue={Number(value)} enabled={real} onClose={()=>setOrderSide(null)} onDone={onRefresh}/>}
  </div>;
 };
