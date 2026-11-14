@@ -57,3 +57,38 @@ export function PositionOwnershipActions({ id, symbol, side, owner, pump, refres
     {error && <small role="alert" className="red" title={error} style={{ flexBasis: '100%' }}>{error}</small>}
   </div>;
 }
+
+/** V19 direct Close action. Always confirm the exact position before sending a live reduce-only close request. */
+export function PositionCloseButton({id,symbol,side}:{id:string;symbol:string;side:string}) {
+  const [open,setOpen]=useState(false);
+  const [confirmation,setConfirmation]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const close=async()=>{
+    if(confirmation.trim() !== 'CLOSE' || busy)return;
+    setBusy(true);setError('');
+    try{
+      const r=await postJson('/api/positions/'+encodeURIComponent(id)+'/close',{confirm:true});
+      if(!r.ok||r.data?.success===false)throw Error(r.data?.error||r.data?.message||'Position close was rejected');
+      setOpen(false);setConfirmation('');
+    }catch(e:any){setError(e.message||'Position close failed. Check the exchange before retrying.')}
+    finally{setBusy(false)}
+  };
+  return <>
+    <button type="button" className="tb-v19-close-btn" onClick={()=>{setConfirmation('');setError('');setOpen(true)}} aria-label={`Close ${symbol} ${side} position`}>Close</button>
+    {open && <div className="tb-v19-close-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOpen(false)}}>
+      <section className="tb-v19-close-dialog" role="dialog" aria-modal="true" aria-label={`Close ${symbol} ${side} position`}>
+        <h3>Close position</h3>
+        <p>You are about to send a <strong>REAL close request</strong> for this exchange position. Review the exact symbol and side.</p>
+        <div className="tb-v19-close-target"><span>SYMBOL <b>{symbol}</b></span><span>SIDE <b className={side==='Buy'?'green':'red'}>{side==='Buy'?'BUY':'SHORT'}</b></span></div>
+        <label htmlFor={`confirm-close-${id}`}>Type <b>CLOSE</b> to confirm</label>
+        <input id={`confirm-close-${id}`} autoFocus autoComplete="off" value={confirmation} onChange={e=>setConfirmation(e.target.value)} disabled={busy} />
+        {error&&<p className="tb-v19-close-error" role="alert">{error}</p>}
+        <div className="tb-v19-close-actions">
+          <button type="button" onClick={()=>setOpen(false)} disabled={busy}>Cancel</button>
+          <button type="button" className="danger" disabled={busy||confirmation.trim()!=='CLOSE'} onClick={()=>void close()}>{busy?'Closing…':'Confirm Close'}</button>
+        </div>
+      </section>
+    </div>}
+  </>;
+}
