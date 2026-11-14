@@ -130,45 +130,37 @@ export const LightShell: React.FC<{
       <a className="skip-link" href="#main-content">Skip to content</a>
       <div className="app">
         <main className="main" id="dashboard">
-           <div className="tb-top-nav">
-             <button className="tb-top-brand" type="button" onClick={() => onTab('dashboard')} aria-label="TradeBot Pro Dashboard">
-               <img src="/tradebot-icon-v1.png" alt="" /><span>TRADEBOT <em>PRO</em></span>
+           <header className="tb-v19-header" data-testid="t-topbar">
+             <button className="tb-v19-brand" type="button" onClick={() => onTab('dashboard')} aria-label="TradeBot Pro Dashboard">
+               <span className="tb-v19-brandmark">T</span><span>TRADEBOT <em>PRO</em></span>
              </button>
-             <nav className="tb-primary-nav" aria-label="Primary navigation">
+             <nav className="tb-v19-primary" aria-label="Primary navigation">
                {TOP_GROUPS.map((g) => <a key={g.name} href={PAGE_PATHS[g.entry]}
                  className={currentGroup.name === g.name ? 'active' : undefined}
                  aria-current={currentGroup.name === g.name ? 'page' : undefined}
                  onClick={(e) => linkClick(e, PAGE_PATHS[g.entry])}>{g.name}</a>)}
              </nav>
-             <div className="tb-top-health"><span className={running ? 'tb-live-dot' : 'tb-off-dot'}/>
-               {running ? 'RUNNING' : 'STOPPED'}</div>
+             <div className="tb-v19-actions">
+               <span className={'data-health tb-v19-health '+health.tone} role="status"
+                 title={lastUpdated?'Last received '+new Date(lastUpdated).toLocaleTimeString():'Waiting for server'}>{health.label}</span>
+               <span className={'tb-v19-run-pill '+(running?'running':'paused')}>{running?'● BOT RUNNING':'● BOT STOPPED'}</span>
+               <button className="tb-v19-startstop" type="button" data-testid="start-stop"
+                 disabled={!running && !(configured && conn?.state === 'CONNECTED')}
+                 onClick={openStartStop}>{running?'STOP BOT':'START BOT'}</button>
+               <TradeNotificationBell/>
+               <button className="tb-v19-logout" type="button" title="Logout" onClick={logout}>Logout</button>
+             </div>
+           </header>
+           <div className="tb-v19-account-strip" data-testid="header-stats">
+             <div className="tb-v19-account-cell"><small>BOT Positions</small><strong>{counts.bot_positions ?? '—'}</strong></div>
+             <div className="tb-v19-account-cell"><small>External</small><strong>{counts.external_positions ?? '—'}</strong></div>
+             <div className="tb-v19-account-cell"><small>Symbols</small><strong>{symbols ?? '—'}</strong></div>
+             <div className="tb-v19-account-cell"><small>Wallet Balance</small><strong data-testid="hs-wallet">{has ? fmt(usdtBal) : '—'}</strong></div>
+             <div className="tb-v19-account-cell"><small>Total Equity</small><strong data-testid="hs-equity">{has ? fmt(w.totalEquity) : '—'}</strong></div>
+             <div className="tb-v19-account-cell"><small>Free Margin</small><strong data-testid="hs-free">{has ? fmt(w.availableBalance) : '—'}</strong></div>
+             <div className="tb-v19-account-cell"><small>Used Margin</small><strong data-testid="hs-used">{has ? fmt(w.usedMargin) : '—'}</strong></div>
+             <div className="tb-v19-account-cell"><small>Unrealized P&amp;L</small><strong className={upnl === null?'':upnl<0?'red':upnl>0?'green':''} data-testid="hs-upnl">{upnl === null ? '—' : `${upnl>0?'+':''}${fmt(upnl,3)}`}</strong></div>
            </div>
-          <header className="top" data-testid="t-topbar">
-            <div className="top-heading">
-                            <span className={`header-start-text${running ? ' is-on' : ''}`} role="button" tabIndex={0} data-testid="start-stop"
-                aria-disabled={!running && !(configured && conn?.state === 'CONNECTED') ? 'true' : undefined}
-                title={running ? 'Pause the bot (no TP close / reopen until started again)' : configured && conn?.state === 'CONNECTED' ? 'Start managing all saved bot cycles' : 'Connect the Bybit API first'}
-                onClick={openStartStop} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStartStop(); } }}>
-                {running ? 'STOP' : 'START'}
-              </span>
-              <strong>{title}</strong>
-              <span className={'data-health '+health.tone} role="status" title={lastUpdated?'Last received '+new Date(lastUpdated).toLocaleTimeString():'Waiting for server'}>{health.label}</span>
-
-            </div>
-            <div className="stats" data-testid="header-stats">
-              <div className="stat"><div className="name">BOT Positions</div><div className="value">{counts.bot_positions ?? '—'}</div></div>
-              <div className="stat"><div className="name">External</div><div className="value">{counts.external_positions ?? '—'}</div></div>
-              <div className="stat"><div className="name">Symbols</div><div className="value">{symbols ?? '—'}</div></div>
-              <div className="stat"><div className="name">Wallet Balance</div><div className="value" data-testid="hs-wallet">{has ? fmt(usdtBal) : '—'}</div></div>
-              <div className="stat"><div className="name">Total Equity</div><div className="value" data-testid="hs-equity">{has ? fmt(w.totalEquity) : '—'}</div></div>
-              <div className="stat"><div className="name">Free Margin</div><div className="value" data-testid="hs-free">{has ? fmt(w.availableBalance) : '—'}</div></div>
-              <div className="stat"><div className="name">Used Margin</div><div className="value" data-testid="hs-used">{has ? fmt(w.usedMargin) : '—'}</div></div>
-              <div className="stat"><div className="name">Unrealized P&amp;L</div><div className={`value${upnl === null ? '' : upnl < 0 ? ' red' : upnl > 0 ? ' green' : ''}`} data-testid="hs-upnl">{upnl === null ? '—' : `${upnl > 0 ? '+' : ''}${fmt(upnl, 3)}`}</div></div>
-            </div>
-            <div className="header-actions"><TradeNotificationBell/>
-              <button className="header-action-btn logout-btn" type="button" title="Logout" onClick={logout}>Logout</button>
-            </div>
-          </header>
           <nav className="tb-sub-nav" aria-label={currentGroup.name + ' tabs'}>
             {currentGroup.tabs.filter((t) => t.id !== 'symbol_trading' || activeTab === 'symbol_trading').map((t) => (
               <a key={t.id} href={t.id === 'symbol_trading' ? window.location.pathname : PAGE_PATHS[t.id]}
