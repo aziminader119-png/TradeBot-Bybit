@@ -104,7 +104,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
   const v = (x: string | number) => (synced ? x : '—');
 
   const emptyText = !configured ? 'Connect the Bybit API on the Dashboard to see your positions.'
-    : !synced ? `Not synced with Bybit (${conn?.error?.message || conn?.state || 'no connection'}).`
+    : !synced ? 'Not synced with Bybit.'
     : data.length === 0 ? 'No open BOT position on Bybit.' : 'No matching positions';
 
   return (
