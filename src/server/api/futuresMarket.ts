@@ -39,7 +39,7 @@ async function displayContract(symbol:string){
 futuresRouter.get('/positions/:symbol',async(req,res)=>{
  try{const symbol=symbolOf(req.params.symbol),engine=TradingEngine.getInstance();if(engine.getConnection().state!=='CONNECTED'){res.status(409).json({error:'Connect Bybit first'});return;}
  const raw=await engine.getClient().getPositions(symbol),number=(v:unknown)=>{const n=Number(v);return v!==''&&v!==null&&v!==undefined&&Number.isFinite(n)?n:null;};
- res.setHeader('Cache-Control','no-store');res.json({symbol,checkedAt:Date.now(),positions:raw.filter(p=>p.symbol===symbol&&Number(p.size)>0&&(p.side==='Buy'||p.side==='Sell')).map(p=>({side:p.side,size:number(p.size),entryPrice:number(p.avgPrice||p.entryPrice),unrealizedPnl:number(p.unrealisedPnl),takeProfit:number(p.takeProfit),stopLoss:number(p.stopLoss)}))});
+ res.setHeader('Cache-Control','no-store');res.json({symbol,checkedAt:Date.now(),positions:raw.filter(p=>p.symbol===symbol&&Number(p.size)>0&&(p.side==='Buy'||p.side==='Sell')).map(p=>({side:p.side,size:number(p.size),entryPrice:number(p.avgPrice||p.entryPrice),unrealizedPnl:number(p.unrealisedPnl),liqPrice:number(p.liqPrice),takeProfit:number(p.takeProfit),stopLoss:number(p.stopLoss)}))});
  }catch(e:any){res.status(502).json({error:e.message||'Exchange position lines unavailable'});}
 });
 futuresRouter.get('/instrument/:symbol',async(req,res)=>{try{const symbol=symbolOf(req.params.symbol);res.json({instrument:await displayContract(symbol)});}catch(e:any){res.status(400).json({error:e.message||'Contract metadata unavailable'});}});
