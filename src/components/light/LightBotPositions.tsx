@@ -7,6 +7,7 @@ import { Pager, RowsPicker, SortTh, compactTargetPrice, num, price, sortRows, to
 import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
 import { PositionCloseButton, PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
+import {BulkCloseSelected} from './BulkCloseSelected.tsx';
 
 // BOT Positions page of the approved light design. Rows = real Bybit positions from the last successful sync that
 // the backend marks as bot-owned (owner === 'bot'); nothing else is shown. Everything comes from the WebSocket
@@ -49,6 +50,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
   const [size, setSize] = useState(20);
   const [page, setPage] = useState(1);
   const [sort, toggleSort] = useSort<K>();
+  const [checked,setChecked]=useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(t); }, []);
 
@@ -101,6 +103,15 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
     });
   }, [data, q, sideF, sort, now]);
   const pg = usePaged(filtered, size, page);
+  const livePos=new Map((synced||[]).filter(p=>p.size>0&&!p.missingOnExchangeSince).map(p=>[p.id,p]));
+  const checkedPositions=checked.map(id=>livePos.get(id)).filter((p):p is BotPosition=>Boolean(p));
+  const visibleIds=pg.slice.filter(d=>d.p.size>0&&!d.p.missingOnExchangeSince).map(d=>d.p.id);
+  const selectedOnPage=visibleIds.length>0&&visibleIds.every(id=>checked.includes(id));
+  const toggleAllVisible=(value:boolean)=>setChecked(prev=>value
+    ? [...new Set([...prev,...visibleIds])]
+    : prev.filter(id=>!visibleIds.includes(id)));
+  const toggleRow=(id:string,value:boolean)=>setChecked(prev=>value?[...new Set([...prev,id])]:prev.filter(v=>v!==id));
+
   const reset = <T,>(fn: (v: T) => void) => (v: T) => { fn(v); setPage(1); };
   const v = (x: string | number) => (synced ? x : '—');
 
@@ -125,6 +136,8 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
       <div className="lp-toolbar">
         <div className="tb-left">
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
+          <BulkCloseSelected positions={checkedPositions} onClosed={ids=>setChecked(prev=>prev.filter(id=>!ids.includes(id)))}/>
+          {checked.length>0&&<button type="button" className="tb-v19-clear-selection" onClick={()=>setChecked([])}>Clear selection</button>}
           <button className="tb-bulk" type="button" disabled title="Not available in this version" data-testid="bulk-release">Bulk Release All From BOT</button>
         </div>
 
@@ -142,6 +155,9 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
             <SortTh k="mark" s={sort} onSort={toggleSort}>Mark</SortTh>
             <SortTh k="liq" s={sort} onSort={toggleSort}>Liq</SortTh>
             <SortTh k="tp" s={sort} onSort={toggleSort} title="Internal BOT take profit; no exchange stop loss">TP / SL</SortTh>
+            <th className="tb-v19-select-col" title="Select visible positions"><input type="checkbox"
+               aria-label="Select all visible positions" checked={selectedOnPage} disabled={!visibleIds.length}
+               onChange={e=>toggleAllVisible(e.target.checked)} /></th>
             <SortTh k="upnl" s={sort} onSort={toggleSort}>P&amp;L $</SortTh>
             <SortTh k="upnlPct" s={sort} onSort={toggleSort} title="Unleveraged price move, not exchange ROE">P&amp;L %</SortTh>
             <SortTh k="open" s={sort} onSort={toggleSort}>Open Time</SortTh>
@@ -150,7 +166,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
             <th>Act</th>
           </tr></thead>
           <tbody>
-            {pg.slice.length === 0 ? <tr><td colSpan={14} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
+            {pg.slice.length === 0 ? <tr><td colSpan={15} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
               : pg.slice.map(({ p, st, tp, opened }) => (
                 <tr key={p.id} data-pos={p.id}>
                   <td className="symbol" data-col="symbol"><span className="tb-sym-compact"><SymbolSide symbol={p.symbol} leverage={p.leverage} side={p.side}/>
@@ -166,6 +182,10 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
                   <td data-col="mark">{price(p.markPrice)}</td>
                   <td data-col="liq"><Liq value={p.liqPrice} fmt={price}/></td>
                   <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? compactTargetPrice(tp.price) : '—'}</span><span className="tb-cell-secondary">SL&nbsp; —</span></td>
+                  <td className="tb-v19-select-col" data-col="select"><input type="checkbox"
+                    aria-label={`Select ${p.symbol} ${p.side} position`}
+                    checked={checked.includes(p.id)} disabled={p.size<=0||Boolean(p.missingOnExchangeSince)}
+                    onChange={e=>toggleRow(p.id,e.target.checked)} /></td>
                   <td className={tone(p.unrealizedPnl)} data-col="upnl">{Number.isFinite(p.unrealizedPnl) ? `${p.unrealizedPnl > 0 ? '+' : ''}${num(p.unrealizedPnl, 4)}` : '—'}</td>
                   <td className={tone(movePct(p))} data-col="upnlPct">{movePct(p) === null ? '—' : `${movePct(p)! > 0 ? '+' : ''}${num(movePct(p), 2)}%`}</td>
                   <td data-col="open"><DateTime ts={opened}/></td>
