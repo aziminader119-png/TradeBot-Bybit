@@ -89,6 +89,7 @@ export function ManualOrderDialog({ symbol, side, initialValue, enabled, onClose
     ['Opening Fee (estimated)', quote ? num(quote.quote.estOpenFee, 6) + ' USDT' : '—'],
   ];
   const isBuy=side==='Buy';
+  const baseSymbol=symbol.endsWith('USDT')?symbol.slice(0,-4):symbol;
   return createPortal(<div className="tb-v19-order-backdrop" role="presentation">
     <section ref={dialogRef} tabIndex={-1} className="tb-v19-order-dialog" role="dialog" aria-modal="true" aria-label={`Market ${isBuy?'Buy':'Sell'} ${symbol}`} data-testid="manual-futures-confirmation">
       <div className="tb-v19-order-title">
@@ -106,8 +107,8 @@ export function ManualOrderDialog({ symbol, side, initialValue, enabled, onClose
         <div className="tb-v19-order-min"><button type="button" disabled={minQty===null||Boolean(done)||sending} onClick={chooseMinimum}>Minimum order</button>
           <span>Min. {minQty??'—'} {symbol.replace(/USDT$/,'')} · ≈ {minValue===null?'—':num(minValue,4)} USDT</span></div>
       </div>
-      <div className="tb-v19-order-summary">{rows.map(([label,output])=><div key={label}><span>{label}</span><strong>{output}</strong></div>)}</div>
-      <div className="tb-v19-order-risk">A real market order is placed only after confirmation. Size, leverage and execution conditions are checked on the server.</div>
+      <div className="tb-v19-order-summary" aria-label="Order confirmation details">{rows.map(([label,output])=><div key={label}><span>{label}</span><strong>{label==='Qty'&&quote?.quote?.qty!=null?String(quote.quote.qty)+' '+baseSymbol:output}</strong></div>)}</div>
+      <div className="tb-v19-order-risk">Review the live Bybit quote, quantity, margin and estimated fee before confirming. The server validates execution conditions again when you confirm.</div>
       {loading&&<div className="tb-v19-order-msg">Checking live market quote…</div>}
       {!enabled&&<div className="tb-v19-order-msg warn">REAL trading is disabled. No order can be sent.</div>}
       {error&&<div className="tb-v19-order-msg error" role="alert">{error}</div>}
