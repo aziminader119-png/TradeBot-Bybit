@@ -130,7 +130,6 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
         <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-filter" value={sideF} options={[{value:'ALL',label:'All Sides'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}]} onChange={reset(setSideF)}/>
       </div>
 
-      <div className="aged-table-title"><span>BOT Positions</span></div>
       <div className="table-wrap" role="region" tabIndex={0} aria-label="BOT positions table">
         <table className="lp-table botpos-table tb-unified-positions" data-testid="botpos-table">
           <thead><tr>
