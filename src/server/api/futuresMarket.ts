@@ -90,6 +90,42 @@ futuresRouter.post('/order',async(req,res)=>{
   res.status(intent.status==='FILLED'?200:409).json({success:intent.status==='FILLED',intent,error:intent.status==='FILLED'?undefined:intent.error||intent.status});
  }catch(e:any){res.status(409).json({error:e.message||'Order refused'});}
 });
+/** Confirmed manual edit of an EXTERNAL hedge position's native Bybit TP/SL.
+ * Fail closed if the position changed between preview and confirmation.
+ * Never allow this route to alter a bot-managed symbol or arm live trading. */
+futuresRouter.post('/protection',async(req,res)=>{
+ try{
+  const body=req.body||{},symbol=symbolOf(body.symbol);
+  const side=body.side,field=body.field,price=body.price,expected=body.expectedPrice;
+  if(side!=='Buy'&&side!=='Sell')throw Error('Invalid hedge position side');
+  if(field!=='takeProfit'&&field!=='stopLoss')throw Error('Invalid protection type');
+  if(body.confirm!==true||typeof body.requestId!=='string'||!/^[a-f0-9-]{36}$/i.test(body.requestId))throw Error('A confirmed request ID is required');
+  if(typeof price!=='number'||!Number.isFinite(price)||price<=0)throw Error('Invalid TP/SL price');
+  if(typeof expected!=='number'||!Number.isFinite(expected)||expected<0)throw Error('Invalid previous protection price');
+  const engine=TradingEngine.getInstance(),db=BotDatabase.getInstance();
+  if(engine.getConnection().state!=='CONNECTED'||engine.getConnection().keyInfo?.readOnly)throw Error('Writable Bybit API connection required');
+  if(engine.getTradingMode()!=='REAL'||!engine.getClient().isTradingEnabled())throw Error('Live trading has not been armed');
+  if(db.getSettings().emergencyStop)throw Error('Emergency stop is active');
+  if(db.getStrategyCycle(symbol)?.status!=='CLOSED'&&db.getStrategyCycle(symbol))throw Error('Bot-managed symbol: external TP/SL editing is blocked');
+  // Serialize protection edits for this symbol and side, then read fresh exchange state.
+  const outcome=await withManualRequest('protection:'+symbol+':'+side,async()=>{
+   const client=engine.getClient(),positions=await client.getPositions(symbol),idx=side==='Buy'?1:2;
+   const matches=positions.filter(p=>p.symbol===symbol&&p.side===side&&Number(p.positionIdx)===idx&&Number(p.size)>0);
+   if(matches.length!==1)throw Error('Exactly one verified open hedge position is required');
+   const current=matches[0],entry=Number(current.avgPrice||current.entryPrice);
+   const mark=Number((await client.getTickers(symbol))[symbol]?.markPrice);
+   if(!(Number.isFinite(mark)&&mark>0&&Number.isFinite(entry)&&entry>0))throw Error('Fresh mark and entry prices required');
+   const old=Number(current[field]||0);
+   if(!Number.isFinite(old)||Math.abs(old-expected)>Math.max(1e-8,Math.abs(expected)*1e-8))throw Error('TP/SL changed on Bybit. Refresh before editing again');
+   const validDirection=field==='takeProfit'?(side==='Buy'?price>mark:price<mark):(side==='Buy'?price<mark:price>mark);
+   if(!validDirection)throw Error('TP/SL must be on the correct side of current Mark Price');
+   if(Math.abs(price-old)<Math.max(1e-10,price*1e-9))throw Error('Price has not changed');
+   await client.setExternalTradingStop(symbol,idx,field,price);
+   return {symbol,side,field,previous:old,requested:price,positionIdx:idx};
+  });
+  res.setHeader('Cache-Control','no-store');res.json({success:true,...outcome});
+ }catch(e:any){res.status(409).json({success:false,error:e.message||'TP/SL update refused'});}
+});
 /** Authenticated public-market relay. Isolated from the bot's strategy feed and order WebSocket. */
 export function attachFuturesMarket(server:Server,gate:AuthGate){
  const wss=new WebSocketServer({noServer:true,maxPayload:4096});
