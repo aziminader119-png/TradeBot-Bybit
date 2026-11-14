@@ -60,3 +60,9 @@
 .tb-auth-providers button{border:1px solid #353d49;border-radius:8px;background:#252b34;color:#aab5c2;padding:11px 6px;font-size:12px;opacity:.44;cursor:not-allowed}
 .tb-auth-extras p{text-align:center;margin:0;color:#89919e;font-size:11px}
 .tb-auth-extras p button{border:0;background:transparent;color:#7fa8ff;font-size:11px;opacity:.5;cursor:not-allowed}
+
+.tb-auth-header-links{display:flex;align-items:center;gap:8px}
+.tb-auth-header-links span,.tb-auth-header-links button{padding:8px 12px;border-radius:6px;font-size:12px;font-weight:700}
+.tb-auth-header-links span{background:#282d37;color:#fff}
+.tb-auth-header-links button{border:0;background:transparent;color:#8a96a5;opacity:.5;cursor:not-allowed}
+@media(max-width:540px){.tb-auth-header-links{gap:1px}.tb-auth-header-links span,.tb-auth-header-links button{padding:6px;font-size:11px}}
