@@ -806,6 +806,16 @@ export class BybitClient {
     return res.retCode === 0;
   }
 
+  /** Confirmed user-only protection edit. Never called by the bot strategy. */
+  public async setExternalTradingStop(symbol:string,positionIdx:1|2,field:'takeProfit'|'stopLoss',value:number):Promise<void>{
+    this.assertTrading('external-tpsl');
+    if(!Number.isFinite(value)||value<=0||![1,2].includes(positionIdx))throw Error('Invalid protection price or hedge side');
+    const params:Record<string,string|number>={category:'linear',symbol,positionIdx,tpslMode:'Full',tpTriggerBy:'MarkPrice',slTriggerBy:'MarkPrice'};
+    params[field]=String(value);
+    const result=await this.request('POST','/v5/position/trading-stop',params,true);
+    if(result.retCode!==0)throw retError(result,'/v5/position/trading-stop');
+  }
+
   // Phase 1: setTradingStop (native Bybit TP/SL) was removed. The bot never creates or
   // modifies exchange TP/SL orders; existing Bybit TP orders are left untouched.
 }
