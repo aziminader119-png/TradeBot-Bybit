@@ -40,3 +40,23 @@
 .tb-auth-security svg{width:15px;height:15px;color:#0bba74}
 .tb-auth-footer{font-size:9px;font-weight:700;letter-spacing:1.1px;color:#6c7888;border-top:1px solid #292e37}
 @media(max-width:640px){.tb-auth-topbar,.tb-auth-footer{padding:20px}.tb-auth-top-status{display:none}.tb-auth-center{padding:40px 16px}.tb-auth-panel{padding:22px}.tb-auth-hero h1{font-size:31px}}
+
+/* Single enabled login method, matching the supplied compact email sign-in reference
+   while retaining TradeBot's approved blue/green/red palette. */
+.tb-auth-panel{border-radius:14px;padding:30px}
+.tb-auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;background:#101216;border-radius:9px;padding:5px;margin-bottom:22px}
+.tb-auth-tabs button{border:0;border-radius:6px;background:transparent;color:#89919e;padding:10px 12px;font-weight:700;font-size:12px}
+.tb-auth-tabs button.selected{background:#2a303a;color:#f0f3f8}
+.tb-auth-tabs button:disabled{opacity:.4;cursor:not-allowed}
+.tb-auth-field input{border-radius:8px}
+.tb-auth-submit{border-radius:999px;background:#1463ff}
+.tb-auth-forgot{background:transparent;border:0;color:#7ba5ff;font-size:11px;text-align:right;cursor:not-allowed;opacity:.55}
+.tb-auth-forgot span{color:#89919e;font-size:10px;margin-left:6px}
+.tb-auth-extras{display:flex;flex-direction:column;gap:15px;margin-top:20px}
+.tb-auth-or{position:relative;text-align:center;color:#89919e;font-size:10px}
+.tb-auth-or:before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:#292e37}
+.tb-auth-or span{position:relative;background:#161920;padding:0 9px}
+.tb-auth-providers{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tb-auth-providers button{border:1px solid #353d49;border-radius:8px;background:#252b34;color:#aab5c2;padding:11px 6px;font-size:12px;opacity:.44;cursor:not-allowed}
+.tb-auth-extras p{text-align:center;margin:0;color:#89919e;font-size:11px}
+.tb-auth-extras p button{border:0;background:transparent;color:#7fa8ff;font-size:11px;opacity:.5;cursor:not-allowed}
