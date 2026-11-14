@@ -31,6 +31,7 @@ export class BybitOpenAlgoFeed implements DataFeed {
     let active=true;
     const release=this.underlying.subscribe({
       symbol:req.symbol,timeframe,
+      onTick:()=>{},
       onBar:b=>{
         if(active&&!this.destroyed)onBar({time:b.time,open:b.open,high:b.high,low:b.low,close:b.close,volume:b.volume});
       }
