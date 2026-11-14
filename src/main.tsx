@@ -6,6 +6,7 @@ import { installApiFetch } from './security/apiClient.ts';
 
 installApiFetch();
 import './index.css';
+import './styles/v19.css';
 
 interface Props {
   children: ReactNode;
