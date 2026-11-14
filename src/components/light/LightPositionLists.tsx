@@ -9,7 +9,7 @@ import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
 import { syncedPositions } from './LightShell.tsx';
 import { Pager, RowsPicker, SortTh, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
-import { PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
+import { PositionCloseButton, PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
 
 // Read-only lists. No trading or ownership mutations; data comes from the existing synced snapshot.
 type SideF = 'ALL' | 'Buy' | 'Sell';
@@ -205,7 +205,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
                   <td data-col="open"><DateTime ts={opened} /></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
                   {risk && <td className={view === 'margin' ? '' : tone(movePct(p))} data-col="risk">{view === 'margin' ? <MarginCell p={p} /> : num(movePct(p), 2) + '%'}</td>}
-                  <td data-col="actions"><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} pump={p.side === 'Sell' ? pumpBySymbol.get(p.symbol) : undefined} refresh={pumpOwnership.refresh} />{p.owner === 'bot' && <button type="button" className="row-act" onClick={onGoCycles}>Cycle</button>}</td>
+                  <td data-col="actions"><div className="tb-v19-row-actions"><PositionCloseButton id={p.id} symbol={p.symbol} side={p.side}/><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} pump={p.side === 'Sell' ? pumpBySymbol.get(p.symbol) : undefined} refresh={pumpOwnership.refresh} />{p.owner === 'bot' && <button type="button" className="row-act" onClick={onGoCycles}>Cycle</button>}</div></td>
                 </tr>
               ))}
           </tbody>
