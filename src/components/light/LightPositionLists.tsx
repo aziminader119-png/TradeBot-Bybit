@@ -10,6 +10,7 @@ import { DateTime, Liq, SymbolSide } from './format.tsx';
 import { syncedPositions } from './LightShell.tsx';
 import { Pager, RowsPicker, SortTh, compactTargetPrice, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
 import { PositionCloseButton, PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
+import {BulkCloseSelected} from './BulkCloseSelected.tsx';
 
 // Read-only lists. No trading or ownership mutations; data comes from the existing synced snapshot.
 type SideF = 'ALL' | 'Buy' | 'Sell';
@@ -66,6 +67,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
   const [size, setSize] = useState(20);
   const [page, setPage] = useState(1);
   const [sort, toggleSort] = useSort<K>();
+  const [checked,setChecked]=useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
   const pumpOwnership = usePumpOwnership();
   const pumpBySymbol = new Map(pumpOwnership.trades.filter(t => ['OPEN', 'ENTRY_PENDING', 'EXIT_PENDING'].includes(t.status)).map(t => [t.symbol, t]));
@@ -126,6 +128,15 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
     });
   }, [data, q, sideF, ownerF, sort, now, view, minHours, maxHours, threshold]);
   const pg = usePaged(filtered, size, page);
+  const livePos=new Map((synced||[]).filter(p=>p.size>0&&!p.missingOnExchangeSince).map(p=>[p.id,p]));
+  const checkedPositions=checked.map(id=>livePos.get(id)).filter((p):p is BotPosition=>Boolean(p));
+  const visibleIds=pg.slice.filter(d=>d.p.size>0&&!d.p.missingOnExchangeSince).map(d=>d.p.id);
+  const selectedOnPage=visibleIds.length>0&&visibleIds.every(id=>checked.includes(id));
+  const toggleAllVisible=(value:boolean)=>setChecked(prev=>value
+    ? [...new Set([...prev,...visibleIds])]
+    : prev.filter(id=>!visibleIds.includes(id)));
+  const toggleRow=(id:string,value:boolean)=>setChecked(prev=>value?[...new Set([...prev,id])]:prev.filter(v=>v!==id));
+
   const reset = <T,>(fn: (v: T) => void) => (v: T) => { fn(v); setPage(1); };
   const v = (x: string | number) => (synced ? x : '—');
 
@@ -154,6 +165,8 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
       <div className="lp-toolbar">
         <div className="tb-left">
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
+          <BulkCloseSelected positions={checkedPositions} onClosed={ids=>setChecked(prev=>prev.filter(id=>!ids.includes(id)))}/>
+          {checked.length>0&&<button type="button" className="tb-v19-clear-selection" onClick={()=>setChecked([])}>Clear selection</button>}
           {view === 'aged' && <label>Open longer than (days): <input type="number" min="0" step="0.5" value={minHours / 24} style={{ width: 80 }} onChange={(e) => { setMinHours(Math.max(0, Number(e.target.value) || 0) * 24); setMaxHours(null); setPage(1); }} /></label>}
         </div>
 
@@ -173,6 +186,9 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
             <SortTh k="mark" s={sort} onSort={toggleSort}>Mark</SortTh>
             <SortTh k="liq" s={sort} onSort={toggleSort}>Liq</SortTh>
             <SortTh k="tp" s={sort} onSort={toggleSort} title="Top: target price; bottom: existing stop loss (not available when blank)">TP / SL</SortTh>
+            <th className="tb-v19-select-col" title="Select visible positions"><input type="checkbox"
+               aria-label="Select all visible positions" checked={selectedOnPage} disabled={!visibleIds.length}
+               onChange={e=>toggleAllVisible(e.target.checked)} /></th>
             <SortTh k="upnl" s={sort} onSort={toggleSort}>P&amp;L $</SortTh>
             <SortTh k="upnlPct" s={sort} onSort={toggleSort} title="Unleveraged price move relative to position direction, not exchange ROI">P&amp;L %</SortTh>
             <SortTh k="open" s={sort} onSort={toggleSort}>Open Time</SortTh>
@@ -181,7 +197,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
             <th>Act</th>
           </tr></thead>
           <tbody>
-            {pg.slice.length === 0 ? <tr><td colSpan={risk ? 14 : 13} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
+            {pg.slice.length === 0 ? <tr><td colSpan={risk ? 15 : 14} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
               : pg.slice.map(({ p, st, tp, opened }) => (
                 <tr key={p.id} data-pos={p.id}>
                   <td className="symbol" data-col="symbol"><span className="tb-sym-compact"><SymbolSide symbol={p.symbol} leverage={p.leverage} side={p.side} />
@@ -200,6 +216,10 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
                   <td data-col="liq"><Liq value={p.liqPrice} fmt={price} /></td>
                   <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? compactTargetPrice(tp.price) : '—'}</span>
                     <span className="tb-cell-secondary">SL&nbsp; —</span></td>
+                  <td className="tb-v19-select-col" data-col="select"><input type="checkbox"
+                    aria-label={`Select ${p.symbol} ${p.side} position`}
+                    checked={checked.includes(p.id)} disabled={p.size<=0||Boolean(p.missingOnExchangeSince)}
+                    onChange={e=>toggleRow(p.id,e.target.checked)} /></td>
                   <td className={tone(p.unrealizedPnl)} data-col="upnl">{Number.isFinite(p.unrealizedPnl) ? `${p.unrealizedPnl > 0 ? '+' : ''}${num(p.unrealizedPnl, 4)}` : '—'}</td>
                   <td className={tone(movePct(p))} data-col="upnlPct">{movePct(p) === null ? '—' : `${movePct(p)! > 0 ? '+' : ''}${num(movePct(p), 2)}%`}</td>
                   <td data-col="open"><DateTime ts={opened} /></td>
