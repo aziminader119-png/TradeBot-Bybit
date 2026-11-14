@@ -90,6 +90,40 @@ futuresRouter.post('/order',async(req,res)=>{
   res.status(intent.status==='FILLED'?200:409).json({success:intent.status==='FILLED',intent,error:intent.status==='FILLED'?undefined:intent.error||intent.status});
  }catch(e:any){res.status(409).json({error:e.message||'Order refused'});}
 });
+/** User-confirmed two-sided hedge OPEN. Sequential, never atomic: report each side truthfully.
+ * A retry of the same request must NOT submit an unattempted second leg. */
+futuresRouter.post('/hedge-order',async(req,res)=>{
+ const results:{side:'Buy'|'Sell';status:string;message?:string}[]=[];
+ try{
+  const b=req.body||{},symbol=symbolOf(b.symbol);
+  const value=Number(b.value),requestId=String(b.requestId||'');
+  if(b.confirm!==true||!Number.isFinite(value)||value<=0||!/^[a-f0-9-]{36}$/i.test(requestId))throw Error('Valid amount, request ID and explicit confirmation required');
+  const engine=TradingEngine.getInstance(),db=BotDatabase.getInstance(),client=engine.getClient();
+  if(engine.getConnection().keyInfo?.readOnly||engine.getTradingMode()!=='REAL'||!client.isTradingEnabled())throw Error('REAL trading not armed for two-sided order');
+  engine.assertOrderAllowed(false,'user','Manual two-sided Futures order');
+  const ids={Buy:requestId, Sell:requestId.replace(/[0-9a-f]$/i,c=>c.toLowerCase()==='f'?'0':(parseInt(c,16)+1).toString(16))};
+  const prior=db.getIntents().filter(i=>i.manualRequestId===ids.Buy||i.manualRequestId===ids.Sell);
+  if(prior.length)throw Error('This two-sided request was already attempted. Reconcile Trade History; no repeat is allowed');
+  const quoteBuy=await manualFuturesQuote(engine,db,symbol,'Buy',value);
+  const quoteSell=await manualFuturesQuote(engine,db,symbol,'Sell',value);
+  const wallet=await client.getWalletBalance();
+  const totalCost=quoteBuy.quote.estMargin+quoteBuy.quote.estOpenFee+quoteSell.quote.estMargin+quoteSell.quote.estOpenFee;
+  if(!(Number.isFinite(totalCost)&&totalCost>0&&totalCost<=wallet.availableBalance))throw Error('Not enough verified free margin for BOTH hedge legs and fees');
+  for(const side of ['Buy','Sell'] as const){
+   try{
+    const id=ids[side];
+    const intent=await engine.strategy.manualExternalOpen(symbol,side,0,0,{
+     notionalUsdt:value,requestId:id,
+     prepare:()=>manualFuturesQuote(engine,db,symbol,side,value,side==='Sell'?{pairedRequestId:ids.Buy}:undefined),
+    });
+    results.push({side,status:intent.status,message:intent.error});
+    if(intent.status!=='FILLED')break; // Uncertain or partial: never send another order.
+   }catch(e:any){results.push({side,status:'STOPPED',message:e.message||'Exchange result uncertain'});break;}
+  }
+  const success=results.length===2&&results.every(r=>r.status==='FILLED');
+  res.status(success?200:409).json({success,results,message:success?'Both hedge legs filled':'One or both legs not filled; inspect each side on Bybit. No automatic retry.'});
+ }catch(e:any){res.status(409).json({success:false,results,error:e.message||'Two-sided order refused'});}
+});
 /** Confirmed manual edit of an EXTERNAL hedge position's native Bybit TP/SL.
  * Fail closed if the position changed between preview and confirmation.
  * Never allow this route to alter a bot-managed symbol or arm live trading. */
