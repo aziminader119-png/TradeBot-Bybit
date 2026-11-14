@@ -19,7 +19,7 @@ const theme={...darkTheme,background:'#101216',grid:'#20252e',axisText:'#9da7b4'
  buy:'#0bba74',sell:'#ff4761',profit:'#0bba74',loss:'#ff4761'};
 const storageKey='tradebot:openalgo:timeframe';
 const initialFrame=()=>{try{const value=localStorage.getItem(storageKey)||'5m';return intervals.includes(value)?value:'5m'}catch{return '5m'}};
-type ChartLine={remove:()=>void};
+type ChartLine=ReturnType<Widget['chart']['addPriceLine']>;
 type WidgetOverlay=Widget&{chart:Widget['chart']&{addPriceLine:(opt:PriceLineOptions)=>ChartLine;removePrimitive:(item:ChartLine)=>void}};
 
 export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string;positionLines?:OrderLine[]}) {
@@ -61,7 +61,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
    for(const line of positionLines){
      if(!(line.price>0&&Number.isFinite(line.price)))continue;
      try{
-       const options:PriceLineOptions={price:line.price,color:line.color||'#1463ff',
+       const options:PriceLineOptions={id:line.id,price:line.price,color:line.color||'#1463ff',
          lineWidth:1,dashed:line.type!=='entry',badge:line.side==='buy'?'BUY':'SHORT',
          leftLabel:line.label||'',closeButton:false};
        overlays.current.push(chart.addPriceLine(options));
