@@ -43,7 +43,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   setProtectionPrice(p[field]?String(p[field]):'');setProtectionError('');
  };
  const handleChartProtectionDrag=(id:string,dragPrice:number)=>{
-  const match=/^position:[^:]+:(Buy|Sell):exchange-(tp|sl)$/.exec(id);
+  const match=/^position:[^:]+:(Buy|Sell):(?:exchange|draft)-(tp|sl)$/.exec(id);
   if(!match)return;
   const side=match[1] as 'Buy'|'Sell',field=match[2]==='tp'?'takeProfit':'stopLoss';
   const position=protections.data?.positions?.find(p=>p.side===side&&p.size>0);
