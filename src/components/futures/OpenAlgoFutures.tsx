@@ -72,7 +72,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
      instance.on('data',(event:any)=>{
        if(widget.current!==activeWidget)return;
        if(event?.error){setFailure(String(event.error?.message||event.error));return;}
-       if(event?.bars?.length>0){setFailure('');setChartLoaded(true);drawLines(activeWidget);}
+       if((Array.isArray(event?.bars)&&event.bars.length>0)||(typeof event?.bars==='number'&&event.bars>0)){setFailure('');setChartLoaded(true);drawLines(activeWidget);}
      });
      instance.on('interval',()=>{try{localStorage.setItem(storageKey,instance?.interval()||'5m')}catch{}});
      window.dispatchEvent(new CustomEvent('ft-chart-ok',{detail:{symbol}}));
@@ -91,6 +91,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
  },[positionLines,chartLoaded]);
  return <div className="tb-openalgo-wrap" data-testid="openalgo-futures-chart">
    <div ref={container} className="tb-openalgo-mount"/>
+   <button type="button" className="tb-openalgo-live" onClick={()=>{try{widget.current?.chart.timeScale.fitContent(100)}catch(e){console.warn('[OpenAlgo] Go to Live failed',e)}}} aria-label="Return to latest candle">Go to Live</button>
    {failure&&<div className="tb-openalgo-error" role="alert">{failure}</div>}
  </div>;
 }
