@@ -449,8 +449,13 @@ apiRouter.post('/positions/:id/close', async (req: Request, res: Response) => {
   const p = db.getPosition(req.params.id);
   if (!p) return fail(res, new Error('Position not found'), 404);
   try {
+    // Reject partial requests before the BOT full-close branch.
+    const requestedPct=req.body?.percentage===undefined?100:Number(req.body.percentage);
+    if(req.body?.confirm!==true)throw Error('Explicit close confirmation is required');
+    if(!Number.isFinite(requestedPct)||requestedPct<=0||requestedPct>100)throw Error('Close percentage must be between 0 and 100');
     const c = db.getStrategyCycle(p.symbol);
     if (p.owner === 'bot' && c && c.cycleId === p.cycleId) {
+      if(requestedPct!==100)throw Error('Partial closes are not permitted for BOT-managed positions. Choose 100% or transfer management first');
       const r = await engine.strategy.manualCloseSide(p.symbol, p.side as 'Buy' | 'Sell');
       wsServer.broadcastSnapshot();
       return res.status(r.ok ? 200 : 409).json({ success: r.ok, message: r.message, error: r.ok ? undefined : r.message });
