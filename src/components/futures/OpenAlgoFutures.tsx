@@ -38,6 +38,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
        feed:datafeed,symbol,exchange:'BYBIT',interval:initialFrame(),
        intervals,chartType:'candlestick',theme,persist:'tradebot-v19-'+symbol,
        topbar:true,rail:true,statusline:true,indicators:true,
+       branding:false, // Hide optional OpenAlgo corner logo; preserve license notices in dependencies.
        // No OrderFeed, no on-chart execution, no drag-to-trade.
      }) as WidgetOverlay;
      widget.current=instance;
