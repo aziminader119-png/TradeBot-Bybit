@@ -456,7 +456,26 @@ apiRouter.post('/positions/:id/close', async (req: Request, res: Response) => {
       return res.status(r.ok ? 200 : 409).json({ success: r.ok, message: r.message, error: r.ok ? undefined : r.message });
     }
     if (p.missingOnExchangeSince && !p.paper) return fail(res, new Error('Position is not on the exchange; nothing to close'), 409);
-    const i = await engine.strategy.manualCloseExternal(p.id);
+    if(req.body?.confirm!==true)return res.status(400).json({success:false,error:'Explicit close confirmation is required'});
+    const pct=req.body?.percentage===undefined?100:Number(req.body.percentage);
+    if(!Number.isFinite(pct)||pct<=0||pct>100)throw Error('Close percentage must be between 0 and 100');
+    let qty:number|undefined;
+    if(pct<100){
+      if(p.paper)throw Error('Partial close of a paper position is not supported');
+      if(p.owner==='bot')throw Error('Partial close of a BOT-managed position is blocked');
+      const client=engine.getClient();
+      if(!client.isTradingEnabled())throw Error('Real trading must be armed for partial close');
+      const live=(await client.getPositions(p.symbol)).filter(x=>x.symbol===p.symbol&&x.side===p.side&&Number(x.positionIdx)===(p.side==='Buy'?1:2)&&Number(x.size)>0);
+      if(live.length!==1)throw Error('Cannot verify exactly one exchange hedge position');
+      const size=Number(live[0].size),rules=await client.getFuturesContract(p.symbol);
+      const step=Number(rules.qtyStep),minimum=Number(rules.minQty);
+      if(!(size>0&&step>0&&minimum>0))throw Error('Exchange quantity rules unavailable');
+      if(Math.abs(size-p.size)>Math.max(step,1e-10))throw Error('Position quantity changed. Refresh before closing');
+      qty=Number((Math.floor((size*pct/100)/step+1e-9)*step).toPrecision(12));
+      const rest=Number((size-qty).toPrecision(12));
+      if(!(qty>=minimum&&rest>=minimum))throw Error('Close or remaining position would be below Bybit minimum. Select another percentage or 100%.');
+    }
+    const i = await engine.strategy.manualCloseExternal(p.id,qty);
     wsServer.broadcastSnapshot();
     res.status(i.status === 'FILLED' ? 200 : 409).json({ success: i.status === 'FILLED', intent: i, error: i.status === 'FILLED' ? undefined : `${i.status}: ${i.error || ''}` });
   } catch (err) { fail(res, err); }
