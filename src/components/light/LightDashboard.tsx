@@ -99,7 +99,7 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
     finally { setDumpSaving(false); }
   };
   const armPump = async (enabled: boolean) => {
-    if (!window.confirm(enabled ? 'Enable REAL Pump Short orders? Up to 10 simultaneous Pump Short positions may be opened.' : 'Stop Pump Short entries and exits? Existing positions will remain open.')) return;
+    if (!window.confirm(enabled ? `Enable REAL Pump Short orders? Up to ${pump.maxPositions} simultaneous Pump Short positions may be opened.` : 'Stop Pump Short entries and exits? Existing positions will remain open.')) return;
     setPumpArmBusy(true); setPumpArmError(null);
     try {
       const r = await postJson('/api/pump-short/arm', { enabled, confirm: true });
@@ -119,8 +119,8 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   }, []);
   const savePump = async () => {
     const body = { minGrowthPct: Number(pump.minGrowthPct), lookbackDays: Number(pump.lookbackDays), retracementPct: Number(pump.retracementPct), positionNotionalUsdt: Number(pump.positionNotionalUsdt), maxPositions: Number(pump.maxPositions) };
-    if (Object.values(pump).some(v => v.trim() === '') || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365 || body.minGrowthPct <= 0 || body.retracementPct <= 0 || body.retracementPct > 100 || body.positionNotionalUsdt <= 0 || !Number.isInteger(body.maxPositions) || body.maxPositions < 1 || body.maxPositions > 200 || !Object.values(body).every(Number.isFinite)) {
-      setPumpError('Enter valid values; days 1–365, exit 1–100%, max positions 1–200.');
+    if (Object.values(pump).some(v => v.trim() === '') || !Number.isInteger(body.lookbackDays) || body.lookbackDays < 1 || body.lookbackDays > 365 || body.minGrowthPct <= 0 || body.retracementPct <= 0 || body.retracementPct > 100 || body.positionNotionalUsdt <= 0 || !Number.isInteger(body.maxPositions) || body.maxPositions < 1 || body.maxPositions > 1000 || !Object.values(body).every(Number.isFinite)) {
+      setPumpError('Enter valid values; days 1–365, exit 1–100%, max positions 1–1000.');
       return;
     }
     setPumpSaving(true); setPumpError(null); setPumpStatus(null);
@@ -314,7 +314,7 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
           <label style={labelStyle()}>Lookback (days)<input aria-label="Pump lookback days" type="number" min="1" max="365" step="1" value={pump.lookbackDays} onChange={e => setPump(p => ({ ...p, lookbackDays: e.target.value }))} /></label>
           <label style={labelStyle()}>Exit retracement (%)<input aria-label="Pump exit retracement percent" type="number" min="1" max="100" step="0.1" value={pump.retracementPct} onChange={e => setPump(p => ({ ...p, retracementPct: e.target.value }))} /></label>
           <label style={labelStyle()}>Position size (USDT)<input aria-label="Pump position size USDT" type="number" min="0.01" step="0.01" value={pump.positionNotionalUsdt} onChange={e => setPump(p => ({ ...p, positionNotionalUsdt: e.target.value }))} /></label>
-          <label style={labelStyle()}>Max Pump Positions<input aria-label="Pump max positions" type="number" min="1" max="200" step="1" value={pump.maxPositions} onChange={e => setPump(p => ({ ...p, maxPositions: e.target.value }))} /></label>
+          <label style={labelStyle()}>Max Pump Positions<input aria-label="Pump max positions" type="number" min="1" max="1000" step="1" value={pump.maxPositions} onChange={e => setPump(p => ({ ...p, maxPositions: e.target.value }))} /></label>
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 8 }}>
           <span style={{ fontSize: 12 }}>Pump Short: <strong className={pumpExecution?.armed ? 'green' : 'red'}>{pumpExecution?.armed ? 'ARMED' : 'DISARMED'}</strong></span>
