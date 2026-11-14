@@ -113,15 +113,15 @@ export function PositionCloseButton({id,symbol,side,quantity,unrealizedPnl}:{
             disabled={busy} onChange={e=>setPercentage(Number(e.target.value))}
             aria-label="Percentage of position to close"
             style={{'--close-pct':percentage+'%'} as React.CSSProperties}/>
-          <div className="tb-v19-close-slider-stops" aria-hidden="true">{[0,25,50,75,100].map(n=><span key={n} style={{left:n+'%'}} className={percentage>=n?'filled':''}/>)}</div>
-          <div className="tb-v19-close-slider-labels"><span>0</span><span>{percentage}%</span></div>
+          <div className="tb-v19-close-slider-stops">{[0,25,50,75,100].map(n=><button type="button" key={n} disabled={busy} style={{left:n+'%'}} className={percentage>=n?'filled':''} onClick={()=>setPercentage(n)} aria-label={`Close ${n}% of position`} aria-pressed={percentage===n}/>)}</div>
+          <div className="tb-v19-close-slider-labels"><span>0</span><span>{percentage}% selected</span><span>100%</span></div>
         </div>
         <div className="tb-v19-close-estimate">
           <p>{qtyText(qty)} {baseSymbol} contract(s) selected for a market close.</p>
           <p>Estimated unrealized P&amp;L: <strong className={estimate!==null&&estimate<0?'red':'green'}>{estimateText}</strong></p>
           <small>Estimate uses the latest position P&amp;L; fees and slippage are not included.</small>
         </div>
-        {!full&&<p role="status" className="tb-v19-close-partial-notice">Partial close requires backend support. Select 100% to close this position.</p>}
+        {!full&&<p role="status" className="tb-v19-close-partial-notice">Partial closing is not supported by the current backend. Select 100% to confirm a market close. No order will be sent for a partial selection.</p>}
         {error&&<p role="alert" className="tb-v19-close-error">{error}</p>}
         <div className="tb-v19-close-actions">
           <button type="button" className="confirm" disabled={busy||!full||maxQty<=0} onClick={()=>void close()}>{busy?'Closing…':'Confirm Close'}</button>
