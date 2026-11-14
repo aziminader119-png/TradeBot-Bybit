@@ -3,7 +3,7 @@ import { BotPosition, BotStateSummary } from '../../types/trading.ts';
 import type { StrategyConfig, StrategyCycle } from '../../types/strategy.ts';
 import { syncedPositions } from './LightShell.tsx';
 import { movePct } from './positionData.ts';
-import { Pager, RowsPicker, SortTh, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
+import { Pager, RowsPicker, SortTh, compactTargetPrice, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
 import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
 import { PositionCloseButton, PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
@@ -165,7 +165,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
                   <td data-col="entry">{price(p.entryPrice)}</td>
                   <td data-col="mark">{price(p.markPrice)}</td>
                   <td data-col="liq"><Liq value={p.liqPrice} fmt={price}/></td>
-                  <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? price(tp.price) : '—'}</span><span className="tb-cell-secondary">SL&nbsp; —</span></td>
+                  <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? compactTargetPrice(tp.price) : '—'}</span><span className="tb-cell-secondary">SL&nbsp; —</span></td>
                   <td className={tone(p.unrealizedPnl)} data-col="upnl">{Number.isFinite(p.unrealizedPnl) ? `${p.unrealizedPnl > 0 ? '+' : ''}${num(p.unrealizedPnl, 4)}` : '—'}</td>
                   <td className={tone(movePct(p))} data-col="upnlPct">{movePct(p) === null ? '—' : `${movePct(p)! > 0 ? '+' : ''}${num(movePct(p), 2)}%`}</td>
                   <td data-col="open"><DateTime ts={opened}/></td>
