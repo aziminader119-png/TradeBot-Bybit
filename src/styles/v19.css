@@ -710,3 +710,19 @@ body .t-modal-bg .t-modal .pos-short,body .t-modal-bg .t-modal .t-down{color:#ff
 .tb-v19-close-slider-stops button:first-child{transform:translate(0,-4px)}
 .tb-v19-close-slider-stops button:last-child{transform:translate(-100%,-4px)}
 .tb-v19-close-slider-stops button:focus-visible{outline:2px solid #8fb7ff;outline-offset:3px}
+
+/* Always-visible batch action for selected table rows. */
+.tb-v19-selection-bar{position:fixed;z-index:9000;left:50%;bottom:18px;transform:translateX(-50%);display:flex;align-items:center;gap:13px;max-width:calc(100vw - 24px);padding:10px 14px;border:1px solid #3b4451;border-radius:12px;background:#161920;box-shadow:0 15px 45px #000b;color:#e9edf3;white-space:nowrap}
+.tb-v19-selection-count{color:#9aa6b7;font-size:12px}.tb-v19-selection-count strong{color:#fff}
+.tb-v19-selection-close{border:0;border-radius:7px;background:#ff4761;color:white;font-size:12px;font-weight:750;padding:10px 16px;cursor:pointer}
+.tb-v19-selection-close:hover{background:#f13651}
+.tb-v19-selection-clear{border:1px solid #485160;border-radius:7px;background:#20242d;color:#e9edf3;font-size:12px;font-weight:650;padding:9px 12px;cursor:pointer}
+.tb-v19-selection-clear:hover{background:#303744}
+.tb-v19-bulk-rows{display:flex;flex-direction:column;gap:0;max-height:40vh;overflow-y:auto}
+.tb-v19-bulk-row{display:grid;grid-template-columns:minmax(0,1.25fr) 60px minmax(65px,.8fr) minmax(95px,1fr);gap:12px;align-items:center;border-bottom:1px solid #292e37;padding:9px 3px;font-size:12px}
+.tb-v19-bulk-row>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-v19-bulk-row>span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.tb-v19-bulk-total{display:flex;justify-content:space-between;gap:15px;border-top:1px solid #292e37;padding-top:12px;font-size:13px}
+.tb-v19-bulk-warning{color:#9aa6b7!important;font-size:11px!important}
+.tb-v19-bulk-dialog{max-width:590px!important}
+@media(max-width:600px){.tb-v19-selection-bar{gap:8px;bottom:8px;padding:9px}.tb-v19-selection-close{padding:9px;font-size:11px}.tb-v19-selection-clear{padding:8px;font-size:11px}.tb-v19-bulk-row{grid-template-columns:minmax(0,1fr) 47px minmax(60px,1fr);gap:5px}.tb-v19-bulk-row>span:last-child{grid-column:2/4;text-align:right}}
