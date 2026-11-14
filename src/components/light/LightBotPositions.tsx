@@ -5,7 +5,7 @@ import { syncedPositions } from './LightShell.tsx';
 import { Pager, RowsPicker, SortTh, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
 import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
-import { PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
+import { PositionCloseButton, PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
 
 // BOT Positions page of the approved light design. Rows = real Bybit positions from the last successful sync that
 // the backend marks as bot-owned (owner === 'bot'); nothing else is shown. Everything comes from the WebSocket
@@ -170,7 +170,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
                   <td data-col="open"><DateTime ts={opened}/></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
                   <td data-col="mart">{p.martTriggered ? 'MART' : '—'}</td>
-                  <td data-col="actions"><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} refresh={pumpOwnership.refresh}/><button type="button" className="row-act" onClick={onGoCycles}>Cycle</button></td>
+                  <td data-col="actions"><div className="tb-v19-row-actions"><PositionCloseButton id={p.id} symbol={p.symbol} side={p.side}/><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} refresh={pumpOwnership.refresh}/><button type="button" className="row-act" onClick={onGoCycles}>Cycle</button></div></td>
                 </tr>
               ))}
           </tbody>
