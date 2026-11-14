@@ -42,6 +42,15 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   setProtectionEdit({side:p.side,field,previous:Number(p[field]||0),size:p.size});
   setProtectionPrice(p[field]?String(p[field]):'');setProtectionError('');
  };
+ const handleChartProtectionDrag=(id:string,dragPrice:number)=>{
+  const match=/^position:[^:]+:(Buy|Sell):exchange-(tp|sl)$/.exec(id);
+  if(!match)return;
+  const side=match[1] as 'Buy'|'Sell',field=match[2]==='tp'?'takeProfit':'stopLoss';
+  const position=protections.data?.positions?.find(p=>p.side===side&&p.size>0);
+  if(!position||!Number.isFinite(dragPrice)||dragPrice<=0)return;
+  openProtection(position,field);
+  setProtectionPrice(String(dragPrice));
+ };
  const protectionUrl='/api/futures/positions/'+encodeURIComponent(symbol)+'?environment='+encodeURIComponent(state?.settings?.environment||'mainnet')+'&entity='+encodeURIComponent(state?.settings?.apiHost||'api.bybit.com');
  const confirmProtection=async()=>{
   const edit=protectionEdit,requested=Number(protectionPrice);
@@ -65,7 +74,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   </div>
 
   <div className="ft-terminal-grid">
-   <section className="ft-chart-shell"><div className="ft-protection-controls" aria-label="Chart TP and SL editor">{protections.data?.positions?.filter(p=>p.size>0).flatMap(p=>[<button type="button" key={p.side+'-tp'} onClick={()=>openProtection(p,'takeProfit')} title={'Confirm a new TP for '+p.side}>{p.side} TP {p.takeProfit?price(p.takeProfit):'Set'}</button>,<button type="button" key={p.side+'-sl'} onClick={()=>openProtection(p,'stopLoss')} title={'Confirm a new SL for '+p.side}>{p.side} SL {p.stopLoss?price(p.stopLoss):'Set'}</button>])}</div>{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays}/></Suspense></section>
+   <section className="ft-chart-shell"><div className="ft-protection-controls" aria-label="Chart TP and SL editor">{protections.data?.positions?.filter(p=>p.size>0).flatMap(p=>[<button type="button" key={p.side+'-tp'} onClick={()=>openProtection(p,'takeProfit')} title={'Confirm a new TP for '+p.side}>{p.side} TP {p.takeProfit?price(p.takeProfit):'Set'}</button>,<button type="button" key={p.side+'-sl'} onClick={()=>openProtection(p,'stopLoss')} title={'Confirm a new SL for '+p.side}>{p.side} SL {p.stopLoss?price(p.stopLoss):'Set'}</button>])}</div>{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays} onProtectionDrag={handleChartProtectionDrag}/></Suspense></section>
    <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)}/>
     <div className="ft-order-calc"><span>Maximum leverage <b>{lev?lev+'x':'—'}</b></span><span>Est. initial margin <b>{initial!==null?num(initial,4)+' USDT':'—'}</b></span><span>Free margin <b>{state?.wallet?.valuesAvailable?num(state.wallet.availableBalance,4)+' USDT':'—'}</b></span></div>
     <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button><button type="button" className="both" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Both')}>BUY + SELL</button></div>
