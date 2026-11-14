@@ -9,7 +9,7 @@ import { BotDatabase } from '../db/database.ts';
 import { TradingEngine } from '../engine/tradingEngine.ts';
 import { AppWebSocketServer } from './wsServer.ts';
 import { BybitClient, BYBIT_REST_HOSTS, cleanCredential } from '../bybit/bybitClient.ts';
-import { DEFAULT_PUMP_SHORT, validatePumpShortSettings } from '../engine/pumpShort.ts';
+import { DEFAULT_PUMP_SHORT, validatePumpShortSettings, validatePumpPositionLimit } from '../engine/pumpShort.ts';
 import { PumpShortScanner } from '../engine/pumpShortScanner.ts';
 import { PumpShortTrader } from '../engine/pumpShortTrader.ts';
 import { DumpBuyTrader } from '../engine/dumpBuyTrader.ts';
@@ -77,8 +77,7 @@ apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
     validatePumpShortSettings(settings);
     if (!Number.isFinite(settings.positionNotionalUsdt) || settings.positionNotionalUsdt <= 0)
       throw new Error('Position size must be greater than zero USDT');
-    if (!Number.isInteger(settings.maxPositions) || settings.maxPositions < 1 || settings.maxPositions > 200)
-      throw new Error('Max positions must be between 1 and 200');
+    validatePumpPositionLimit(settings.maxPositions);
     db.updateSettings({ pumpShort: settings });
     wsServer.broadcastSnapshot();
     res.json({ success: true, settings });
