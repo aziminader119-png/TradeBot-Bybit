@@ -7,13 +7,19 @@ export async function withManualRequest<T>(id:string,fn:()=>Promise<T>):Promise<
  const tail=new Promise<void>(r=>{release=r;});requestLocks.set(id,tail);await previous;
  try{return await fn();}finally{release();if(requestLocks.get(id)===tail)requestLocks.delete(id);}
 }
-export async function manualFuturesQuote(engine:TradingEngine,db:BotDatabase,symbol:string,side:'Buy'|'Sell',notional:number){
+export async function manualFuturesQuote(engine:TradingEngine,db:BotDatabase,symbol:string,side:'Buy'|'Sell',notional:number,options?:{pairedRequestId?:string}){
  if(!Number.isFinite(notional)||notional<=0)throw Error('Position value must be a positive USDT number');
  if(engine.getConnection().state!=='CONNECTED')throw Error('Connect the Bybit API first');
  if(db.getSettings().emergencyStop)throw Error('Emergency stop is active');
  const cycle=db.getStrategyCycle(symbol);if(cycle&&cycle.status!=='CLOSED')throw Error('This symbol has a BOT cycle; a manual order cannot change its position or leverage');
  if(db.getIntents().some(i=>i.symbol===symbol&&(i.status==='PENDING'||i.status==='UNKNOWN')))throw Error('An order outcome on this symbol is unresolved; not sending another order');
- if(db.getIntents().some(i=>i.symbol===symbol&&i.action==='OPEN'&&i.mode==='LIVE'&&(i.status==='FILLED'||i.status==='PARTIAL')&&Date.now()-i.updatedAt<15000))throw Error('A recent fill is awaiting exchange synchronization; wait before starting another position');
+ const recent=db.getIntents().filter(i=>i.symbol===symbol&&i.action==='OPEN'&&i.mode==='LIVE'&&(i.status==='FILLED'||i.status==='PARTIAL')&&Date.now()-i.updatedAt<15000);
+ if(recent.length){
+  const paired=options?.pairedRequestId;
+  // Only bypass the short reconciliation delay for one verified opposite-side
+  // FILLED order from this exact combined request. No other recent fill is ignored.
+  if(!paired||recent.some(i=>i.status!=='FILLED'||i.manualRequestId!==paired||i.side===side))throw Error('A recent fill is awaiting exchange synchronization; wait before starting another position');
+ }
  const client=engine.getClient();
  const [instruments,tickers,positions,wallet]=await Promise.all([client.getFuturesContract(symbol),client.getTickers(symbol),client.getPositions(symbol),client.getWalletBalance()]);
  if(positions.some(p=>p.side===side&&Number(p.size)>0))throw Error(`This symbol already has an open ${side === 'Buy' ? 'BUY' : 'SHORT'} position; a second order would merge into it`);
