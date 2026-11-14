@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DEFAULT_PUMP_SHORT, findPumpWave, isPumpShortEntryEligible, pumpShortTargetHit, pumpShortEntryTarget } from '../src/server/engine/pumpShort.ts';
+import { DEFAULT_PUMP_SHORT, findPumpWave, isPumpShortEntryEligible, pumpShortTargetHit, pumpShortEntryTarget, MAX_PUMP_POSITIONS, validatePumpPositionLimit } from '../src/server/engine/pumpShort.ts';
 
 const day = 86_400_000;
 const now = 20 * day;
@@ -36,4 +36,11 @@ test('price touching exactly +20% qualifies', () => {
   const wave = findPumpWave([c(11, 100, 100), c(12, 120, 120)], now, DEFAULT_PUMP_SHORT);
   assert.ok(wave);
   assert.equal(wave.exitPrice, 110);
+});
+
+
+test('Pump Short maximum simultaneous positions is 1000',()=>{
+ assert.equal(MAX_PUMP_POSITIONS,1000);
+ for(const n of [1,200,201,999,1000])assert.doesNotThrow(()=>validatePumpPositionLimit(n));
+ for(const n of [0,1001,-1,1.5,NaN,Infinity])assert.throws(()=>validatePumpPositionLimit(n),/between 1 and 1000/);
 });
