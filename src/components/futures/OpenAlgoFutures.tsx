@@ -37,11 +37,28 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
      instance=createWidget(el,{
        feed:datafeed,symbol,exchange:'BYBIT',interval:initialFrame(),
        intervals,chartType:'candlestick',theme,persist:'tradebot-v19-'+symbol,
+       priceOnlyAutoScale:true, // Position/TP/SL guides must not stretch the candle price axis.
        topbar:true,rail:true,statusline:true,indicators:true,
        branding:false, // Hide optional OpenAlgo corner logo; preserve license notices in dependencies.
        // No OrderFeed, no on-chart execution, no drag-to-trade.
      }) as WidgetOverlay;
      widget.current=instance;
+     // Restore happens asynchronously. Reset the legacy manual vertical range after
+     // widget restoration, not before it; otherwise persisted Y-zoom wins again.
+     // One-time per symbol so later intentional manual zooms remain possible.
+     const scaleMigration='tradebot:openalgo:scale-fixed-v1:'+symbol;
+     void instance.ready.then(async()=>{
+       if(widget.current!==instance)return;
+       instance.chart.setPriceOnlyAutoScale(true);
+       try{
+         if(localStorage.getItem(scaleMigration)!=='1'){
+           await instance.reload();
+           if(widget.current!==instance)return;
+           instance.chart.resetScale();
+           localStorage.setItem(scaleMigration,'1');
+         }
+       }catch(e){console.warn('[OpenAlgo] Auto-fit migration skipped',e)}
+     });
      instance.on('interval',()=>{try{localStorage.setItem(storageKey,instance?.interval()||'5m')}catch{}});
      window.dispatchEvent(new CustomEvent('ft-chart-ok',{detail:{symbol}}));
    }catch(e:any){
