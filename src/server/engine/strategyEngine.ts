@@ -860,11 +860,13 @@ export class StrategyEngine {
     });
   }
 
-  public async manualCloseExternal(positionId: string): Promise<OrderIntent> {
+  public async manualCloseExternal(positionId: string,closeQty?:number): Promise<OrderIntent> {
     const p = this.db.getPosition(positionId);
     if (!p) throw new Error('Position not found');
     return this.withLock(p.symbol, async () => {
-      const i = await this.execute({ cycle: null, symbol: p.symbol, side: p.side as Side, action: 'MANUAL_CLOSE', reduceOnly: true, qty: p.size, origin: 'user' });
+      const qty=closeQty===undefined?p.size:closeQty;
+      if(!(Number.isFinite(qty)&&qty>0&&qty<=p.size))throw Error('Close quantity must be positive and no larger than the verified position');
+      const i = await this.execute({ cycle: null, symbol: p.symbol, side: p.side as Side, action: 'MANUAL_CLOSE', reduceOnly: true, qty, origin: 'user' });
       if (i.status === 'FILLED') {
         this.recordTrade(null, i, (p.side === 'Buy' ? i.avgPrice! - p.entryPrice : p.entryPrice - i.avgPrice!) * i.filledQty!);
         if (p.paper) this.db.removePosition(p.id);
