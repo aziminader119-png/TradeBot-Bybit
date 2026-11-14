@@ -88,7 +88,7 @@ export const AuthShell: React.FC<{ children: React.ReactNode }> = ({ children })
       <div className="tb-auth-glow tb-auth-glow-right" aria-hidden="true" />
       <header className="tb-auth-topbar">
         <div className="tb-auth-wordmark"><span className="tb-auth-brand-icon">T</span><strong>TRADEBOT <em>PRO</em></strong></div>
-        <div className="tb-auth-top-status"><span className="tb-auth-status-dot" /> SECURE TRADING TERMINAL</div>
+        <nav className="tb-auth-header-links" aria-label="Account navigation"><span aria-current="page">Sign In</span><button type="button" disabled title="Registration is not available">Register</button><button type="button" disabled title="Support portal is not enabled">Support</button></nav>
       </header>
       <div className="tb-auth-center">
         <div className="tb-auth-hero">
