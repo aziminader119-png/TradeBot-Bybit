@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState,lazy,Suspense} from 'react';
 import type {BotStateSummary} from '../../types/trading.ts';
 import {positionLines,ExchangeChartPosition} from '../futures/positionLines.ts';
 import {SymbolStatistics} from '../futures/SymbolStatistics.tsx';
-const FuturesChart=lazy(()=>import('../futures/FuturesChart.tsx'));
+const OpenAlgoFutures=lazy(()=>import('../futures/OpenAlgoFutures.tsx'));
 import {useFuturesBook} from '../futures/futuresStream.ts';
 import {LightPositionLists} from './LightPositionLists.tsx';
 import {ManualOrderDialog} from './ManualOrderDialog.tsx';
@@ -41,7 +41,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   </div>
 
   <div className="ft-terminal-grid">
-   <section className="ft-chart-shell">{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><FuturesChart pair={{symbol}} frame="futures" livePrice={last||null} book={book} positionLines={overlays}/></Suspense></section>
+   <section className="ft-chart-shell">{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays}/></Suspense></section>
    <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)}/>
     <div className="ft-order-calc"><span>Maximum leverage <b>{lev?lev+'x':'—'}</b></span><span>Est. initial margin <b>{initial!==null?num(initial,4)+' USDT':'—'}</b></span><span>Free margin <b>{state?.wallet?.valuesAvailable?num(state.wallet.availableBalance,4)+' USDT':'—'}</b></span></div>
     <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button></div>
