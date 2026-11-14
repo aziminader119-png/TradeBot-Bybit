@@ -610,3 +610,61 @@
 .tb-v19-close-actions button.cancel{background:transparent!important;color:#e4e8ee!important;border:1px solid #656f7e!important}
 .tb-v19-close-actions button:disabled{opacity:.38!important;cursor:not-allowed!important}
 @media(max-width:540px){.tb-v19-close-dialog{padding:21px!important;border-radius:17px!important;gap:15px!important}.tb-v19-close-actions{gap:9px!important}.tb-v19-close-actions button{font-size:12px!important;height:47px!important}}
+
+
+/* V19 modal contract: portal content must ALWAYS float above the page.
+   The global dashboard selectors do not apply to elements portaled to body. */
+.tb-v19-order-backdrop,
+body .t-modal-bg{
+  position:fixed!important;inset:0!important;z-index:20000!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  overflow-y:auto!important;padding:18px!important;
+  background:rgba(0,0,0,.78)!important;
+  backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
+  box-sizing:border-box;
+}
+.tb-v19-order-backdrop *,body .t-modal-bg *{box-sizing:border-box}
+.tb-v19-order-dialog{
+  display:flex!important;flex-direction:column!important;gap:17px!important;
+  background:#161920!important;color:#e9edf3!important;
+  border:1px solid #323a46!important;border-radius:20px!important;
+  padding:28px 34px!important;width:min(610px,100%)!important;
+  max-height:calc(100dvh - 36px)!important;overflow-y:auto!important;
+  box-shadow:0 26px 85px rgba(0,0,0,.75)!important;
+  font:14px/1.45 Inter,Arial,sans-serif!important;
+}
+.tb-v19-order-title{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.tb-v19-order-title h2{font-size:23px!important;font-weight:750!important;margin:0!important;color:#e9edf3!important}
+.tb-v19-order-title h2 .buy{color:#0bba74!important}
+.tb-v19-order-title h2 .sell{color:#ff4761!important}
+.tb-v19-order-title button{border:0!important;background:transparent!important;color:#8e97a6!important;font-size:29px!important;cursor:pointer!important;line-height:1}
+.tb-v19-order-control{display:flex;flex-direction:column;gap:15px}
+.tb-v19-order-modes{display:flex;gap:6px;padding:4px;border-radius:9px;border:1px solid #323a46;background:#101216}
+.tb-v19-order-modes button{flex:1;min-height:35px;border:0!important;border-radius:6px!important;background:transparent!important;color:#a4afbe!important;font-size:12px!important;font-weight:700!important;cursor:pointer}
+.tb-v19-order-modes button.selected{color:#f7f9fc!important;background:#263241!important}
+.tb-v19-order-field{display:flex;flex-direction:column;gap:9px;color:#adb7c5;font-size:13px;font-weight:680}
+.tb-v19-order-field input{width:100%!important;min-height:51px!important;border-radius:8px!important;border:1px solid #3c4654!important;background:#222731!important;color:#f4f7fa!important;padding:0 14px!important;font-size:17px!important;font-weight:670!important;outline:none}
+.tb-v19-order-field input:focus{border-color:#1463ff!important;box-shadow:0 0 0 2px #1463ff33!important}
+.tb-v19-order-min{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;color:#8490a2;font-size:11px}
+.tb-v19-order-min button{border:0!important;background:transparent!important;color:#8db2ff!important;cursor:pointer!important;padding:0!important;font-weight:680!important}
+.tb-v19-order-summary{display:flex;flex-direction:column;gap:0;padding:5px 0;border-top:1px solid #2a3039}
+.tb-v19-order-summary>div{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:9px 0;min-height:34px}
+.tb-v19-order-summary span{color:#8490a2;font-size:13px}
+.tb-v19-order-summary strong{color:#edf1f8;font-size:13px;font-weight:690;text-align:right;font-variant-numeric:tabular-nums}
+.tb-v19-order-risk{background:#222731;color:#a8b5c5;border:1px solid #353e49;border-radius:8px;padding:12px 15px;font-size:11px;line-height:1.6}
+.tb-v19-order-msg{font-size:12px;color:#a9c2e5;padding:9px;border-radius:6px;background:#1463ff15}
+.tb-v19-order-msg.warn,.tb-v19-order-msg.error{color:#ff8395;background:#ff476114}
+.tb-v19-order-msg.success{color:#48d99c;background:#0bba7417}
+.tb-v19-order-actions{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:3px}
+.tb-v19-order-actions button{height:50px!important;min-width:0;border-radius:999px!important;border:1px solid transparent!important;color:#fff;font-size:14px!important;font-weight:760!important;cursor:pointer!important}
+.tb-v19-order-actions button.buy{background:#0bba74!important}
+.tb-v19-order-actions button.sell{background:#ff4761!important}
+.tb-v19-order-actions button.cancel{background:transparent!important;border-color:#5a6575!important;color:#e8edf3!important}
+.tb-v19-order-actions button:disabled{opacity:.42!important;cursor:not-allowed!important}
+body .t-modal-bg .t-modal{max-width:940px!important;width:100%!important;max-height:calc(100dvh - 36px)!important;overflow:auto!important;background:#161920!important;border:1px solid #3b4551!important;border-radius:20px!important;padding:27px!important;color:#e9edf3!important;box-shadow:0 24px 85px #000a!important}
+body .t-modal-bg .t-modal h2{color:#e9edf3!important;font-size:22px!important}
+body .t-modal-bg .t-modal .t-btn.short{background:#1463ff!important;border-color:#1463ff!important;color:#fff!important;border-radius:999px!important}
+body .t-modal-bg .t-modal .t-btn:not(.short){border-radius:999px!important}
+body .t-modal-bg .t-modal .pos-buy,body .t-modal-bg .t-modal .t-up{color:#0bba74!important}
+body .t-modal-bg .t-modal .pos-short,body .t-modal-bg .t-modal .t-down{color:#ff4761!important}
+@media(max-width:600px){.tb-v19-order-dialog{padding:19px!important;border-radius:16px!important}.tb-v19-order-actions{gap:10px}.tb-v19-order-title h2{font-size:19px!important}body .t-modal-bg .t-modal{padding:17px!important}}
