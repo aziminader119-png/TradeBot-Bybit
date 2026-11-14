@@ -60,6 +60,13 @@ export const Pager: React.FC<{ from: number; to: number; total: number; page: nu
 
 export const num = (v: number | null | undefined, d = 2) => (typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
 /** price with as many decimals as the magnitude needs (as in the design) */
+/** Compact TP/SL display only; never use for exchange order values.
+ * e.g. 0.00164093 → 0.00164; retain enough decimals for micro-priced assets. */
+export const compactTargetPrice = (v: number | null | undefined): string => {
+  if (typeof v !== 'number' || !Number.isFinite(v) || v <= 0) return '—';
+  const decimals = v >= 0.00001 ? 5 : Math.min(12, Math.max(5, Math.ceil(-Math.log10(v)) + 2));
+  return v.toLocaleString('en-US', { maximumFractionDigits: decimals });
+};
 export const price = (v: number | null | undefined) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v.toLocaleString('en-US', { maximumFractionDigits: v >= 10 ? 3 : v >= 1 ? 5 : 8 }) : '—');
 export const signedPct = (v: number | null | undefined, d = 2) => (typeof v === 'number' && Number.isFinite(v) ? `${v > 0 ? '+' : ''}${v.toFixed(d)}%` : '—');
 export const tone = (v: number | null | undefined) => (typeof v === 'number' && v > 0 ? 'green' : typeof v === 'number' && v < 0 ? 'red' : '');
