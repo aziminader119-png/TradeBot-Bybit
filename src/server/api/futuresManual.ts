@@ -1,6 +1,15 @@
 import type {TradingEngine} from '../engine/tradingEngine.ts';
 import type {BotDatabase} from '../db/database.ts';
 import {quoteNotional} from '../engine/strategyMath.ts';
+/** Compute an exchange-legal partial close without ever increasing the requested amount.
+ * Reject quantities that would leave dust or close more than the caller selected. */
+export function partialCloseQuantity(size:number,percent:number,step:number,minQty:number):number{
+ if(![size,percent,step,minQty].every(Number.isFinite)||size<=0||percent<=0||percent>=100||step<=0||minQty<=0)throw Error('Invalid partial close amount');
+ const qty=Number((Math.floor(size*percent/100/step+1e-9)*step).toPrecision(12));
+ const remaining=Number((size-qty).toPrecision(12));
+ if(qty<minQty||remaining<minQty||qty>=size||qty<=0)throw Error('Close or remaining position would be below Bybit minimum');
+ return qty;
+}
 const requestLocks=new Map<string,Promise<void>>();
 export async function withManualRequest<T>(id:string,fn:()=>Promise<T>):Promise<T>{
  const previous=requestLocks.get(id)||Promise.resolve();let release!:()=>void;
