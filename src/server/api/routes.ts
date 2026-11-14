@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {ClosedHistoryCache, closedAccountScope} from './closedHistoryCache.ts';
 import {futuresRouter} from './futuresMarket.ts';
+import {partialCloseQuantity} from './futuresManual.ts';
 import {alertsRouter} from '../alerts/alertsApi.ts';
 import {voiceTtsRouter} from './voiceTts.ts';
 import { Router, Request, Response } from 'express';
@@ -476,9 +477,7 @@ apiRouter.post('/positions/:id/close', async (req: Request, res: Response) => {
       const step=Number(rules.qtyStep),minimum=Number(rules.minQty);
       if(!(size>0&&step>0&&minimum>0))throw Error('Exchange quantity rules unavailable');
       if(Math.abs(size-p.size)>Math.max(step,1e-10))throw Error('Position quantity changed. Refresh before closing');
-      qty=Number((Math.floor((size*pct/100)/step+1e-9)*step).toPrecision(12));
-      const rest=Number((size-qty).toPrecision(12));
-      if(!(qty>=minimum&&rest>=minimum))throw Error('Close or remaining position would be below Bybit minimum. Select another percentage or 100%.');
+      qty=partialCloseQuantity(size,pct,step,minimum);
     }
     const i = await engine.strategy.manualCloseExternal(p.id,qty);
     wsServer.broadcastSnapshot();
