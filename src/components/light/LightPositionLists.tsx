@@ -163,7 +163,6 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
 
       {!fixedSymbol && <p className={'lp-source-note lp-sync-note' + (synced && sync.stale ? ' orange' : '')} data-testid="positions-synced">{sync.at ? <>Last Bybit position sync: <DateTime ts={sync.at} />{synced && sync.stale ? ` — older than 60 s; ${conn?.error?.message || 'Bybit reconciliation is delayed'}` : ''}</> : 'No successful Bybit position sync yet.'}{view === 'margin' && <> · Margin = Bybit position margin (positionIM) at that sync; marked <b>est.</b> where Bybit gives no comparable value (value ÷ leverage). Included: strictly above {Number.isFinite(threshold) ? threshold + ' USDT' : 'the threshold'}, every owner, each side separately.</>}</p>}
       {view === 'mart' && <p className="lp-source-note">Only open BOT positions with a recorded MART addition. Additional MART stages and manual MART execution are not available.</p>}
-      <div className="aged-table-title"><span>{fixedSymbol ? fixedSymbol + ' · Positions' : title}</span></div>
       {(view === 'latest' || view === 'aged') && <p style={{ fontSize: 13 }}>Open time comes from Bybit's current-position openTime. Unavailable times show —{view === 'aged' ? ' and are excluded from the age filter' : ''}.</p>}
       <div className="table-wrap" role="region" tabIndex={0} aria-label="Positions table">
         <table className="lp-table botpos-table tb-unified-positions" data-testid="botpos-table">
