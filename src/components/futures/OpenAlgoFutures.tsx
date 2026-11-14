@@ -22,13 +22,15 @@ const initialFrame=()=>{try{const value=localStorage.getItem(storageKey)||'5m';r
 type ChartLine=ReturnType<Widget['chart']['addPriceLine']>;
 type WidgetOverlay=Widget&{chart:Widget['chart']&{addPriceLine:(opt:PriceLineOptions)=>ChartLine;removePrimitive:(item:ChartLine)=>void}};
 
-export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string;positionLines?:OrderLine[]}) {
+export default function OpenAlgoFutures({symbol,positionLines=[],onProtectionDrag}:{symbol:string;positionLines?:OrderLine[];onProtectionDrag?:(id:string,newPrice:number)=>void}) {
  const container=useRef<HTMLDivElement>(null);
  const widget=useRef<WidgetOverlay|null>(null);
  const overlays=useRef<ChartLine[]>([]);
  const feed=useRef<BybitOpenAlgoFeed|null>(null);
  const [failure,setFailure]=useState('');
  const [chartLoaded,setChartLoaded]=useState(false);
+ const dragHandler=useRef(onProtectionDrag);
+ dragHandler.current=onProtectionDrag;
  const linesRef=useRef(positionLines);
  linesRef.current=positionLines;
  const drawLines=(target:WidgetOverlay)=>{
@@ -39,7 +41,8 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
      try{
        const options:PriceLineOptions={id:line.id,price:line.price,color:line.color||'#1463ff',
          lineWidth:1,dashed:line.type!=='entry',badge:line.type==='tp'?'TP':line.type==='sl'?'SL':line.side==='buy'?'BUY':'SHORT',
-         leftLabel:line.label||'',closeButton:false};
+         leftLabel:line.label||'',closeButton:false,
+         ...(line.id.includes(':exchange-tp')||line.id.includes(':exchange-sl')?{cursor:'ns-resize' as const}:{})};
        overlays.current.push(target.chart.addPriceLine(options));
      }catch(e){console.warn('[OpenAlgo] Position guide failed',e)}
    }
@@ -47,6 +50,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
  useEffect(()=>{
    const el=container.current;if(!el)return;
    let instance:WidgetOverlay|null=null;
+   let releaseDrag:(()=>void)|null=null;
    const datafeed=new BybitOpenAlgoFeed(symbol);
    feed.current=datafeed;setFailure('');setChartLoaded(false);
    try{
@@ -74,6 +78,13 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
        if(event?.error){setFailure(String(event.error?.message||event.error));return;}
        if((Array.isArray(event?.bars)&&event.bars.length>0)||(typeof event?.bars==='number'&&event.bars>0)){setFailure('');setChartLoaded(true);drawLines(activeWidget);}
      });
+     releaseDrag=activeWidget.chart.subscribeDrag(()=>{},(id,price)=>{
+       const line=linesRef.current.find(x=>x.id===id&&(x.id.includes(':exchange-tp')||x.id.includes(':exchange-sl')));
+       if(!line||!Number.isFinite(price)||price<=0)return;
+       const snapped=activeWidget.chart.snapPrice(activeWidget.chart.primaryPaneIndex(),price);
+       drawLines(activeWidget); // Reset to exchange-confirmed price until popup approval.
+       dragHandler.current?.(id,snapped);
+     });
      instance.on('interval',()=>{try{localStorage.setItem(storageKey,instance?.interval()||'5m')}catch{}});
      window.dispatchEvent(new CustomEvent('ft-chart-ok',{detail:{symbol}}));
    }catch(e:any){
@@ -83,7 +94,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
    return()=>{
      for(const line of overlays.current){try{instance?.chart.removePrimitive(line)}catch{}}
      overlays.current=[];widget.current=null;feed.current=null;
-     instance?.destroy();datafeed.destroy();
+     releaseDrag?.();instance?.destroy();datafeed.destroy();
    };
  },[symbol]);
  useEffect(()=>{
