@@ -216,7 +216,9 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
               {!rows ? <tr><td colSpan={14} className="empty">{error?'Bybit symbol list unavailable.':'Loading the Bybit symbol list…'}</td></tr>
                 : pg.slice.length === 0 ? <tr><td colSpan={14} className="empty">{rows.length ? 'No matching symbols' : 'No symbols loaded from Bybit'}</td></tr>
                 : pg.slice.map((r) => {
-                  const busy = Boolean(r.cycle && r.cycle !== 'CLOSED') || r.positions.length > 0;
+                  // A symbol with any existing exchange position can only be traded from Single Coin.
+                  // A live/paused BOT cycle also blocks this list's quick-order controls.
+                  const busy = Boolean(r.cycle && r.cycle !== 'CLOSED') || r.positions.some(p => p.size > 0);
                   const ext = r.positions.filter((p) => p.owner !== 'bot').length;
                   return (
                     <tr key={r.symbol} data-symbol={r.symbol}>
@@ -239,10 +241,12 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
                       <td data-col="managed"><ManagedSides m={r.managed} />{ext > 0 && <small className="ext-note" title="Open positions not opened by the bot; never changed">{ext} external</small>}</td>
                       <td className="trade-cell">
                         <div className="symbol-trade-actions">
-                          <button type="button" className={`trade${busy ? ' muted' : ''}`} data-testid={`start-${r.symbol}`} title="Open a bot-managed Buy + Short hedge after confirmation" onClick={() => setDialogSymbol(r.symbol)}>Start Buy + Sell</button>
+                          <button type="button" className={`trade${busy ? ' muted' : ''}`} disabled={busy} data-testid={`start-${r.symbol}`}
+                            title={busy ? 'Existing open position or active BOT cycle — use Single Coin' : 'Open a bot-managed Buy + Short hedge after confirmation'}
+                            onClick={() => { if (!busy) setDialogSymbol(r.symbol); }}>Start Buy + Sell</button>
                           <div className="symbol-trade-singles">
-                            <button type="button" className="trade pos-buy" onClick={() => void openSingle(r.symbol, 'Buy')}>Buy Only</button>
-                            <button type="button" className="trade pos-short" onClick={() => void openSingle(r.symbol, 'Sell')}>Short Only</button>
+                            <button type="button" disabled={busy} className="trade pos-buy" title={busy ? 'Existing open position or active BOT cycle — use Single Coin' : 'Buy Only'} onClick={() => { if (!busy) void openSingle(r.symbol, 'Buy'); }}>Buy Only</button>
+                            <button type="button" disabled={busy} className="trade pos-short" title={busy ? 'Existing open position or active BOT cycle — use Single Coin' : 'Short Only'} onClick={() => { if (!busy) void openSingle(r.symbol, 'Sell'); }}>Short Only</button>
                           </div>
                         </div>
                       </td>
