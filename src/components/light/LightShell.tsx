@@ -180,16 +180,16 @@ export const LightShell: React.FC<{
              </div>
            </div>
            <div className="tb-v19-account-strip" data-testid="header-stats">
-             <div className="tb-v19-account-cell"><small>BOT Positions</small><strong>{counts.bot_positions ?? '—'}</strong></div>
-             <div className="tb-v19-account-cell"><small>External</small><strong>{counts.external_positions ?? '—'}</strong></div>
-             <div className="tb-v19-account-cell"><small>Symbols</small><strong>{symbols ?? '—'}</strong></div>
-             <div className="tb-v19-account-cell"><small>Wallet Balance</small><strong data-testid="hs-wallet">{has ? fmt(usdtBal) : '—'}</strong></div>
-             <div className="tb-v19-account-cell"><small>Total Equity</small><strong data-testid="hs-equity">{has ? fmt(w.totalEquity) : '—'}</strong></div>
-             <div className="tb-v19-account-cell"><small>Free Margin</small><strong data-testid="hs-free">{has ? fmt(w.availableBalance) : '—'}</strong></div>
-             <div className="tb-v19-account-cell"><small>Used Margin</small><strong data-testid="hs-used">{has ? fmt(w.usedMargin) : '—'}</strong></div>
-             <div className="tb-v19-account-cell"><small>Unrealized P&amp;L</small><strong className={upnl === null?'':upnl<0?'red':upnl>0?'green':''} data-testid="hs-upnl">{upnl === null ? '—' : `${upnl>0?'+':''}${fmt(upnl,3)}`}</strong></div>
+             <div className="tb-v19-account-cell"><small>BOT STATUS</small><strong className={running?'green':'orange'}>{running?'RUNNING':'STOPPED'}</strong><span>{wsConnected?'Live state':'Waiting for connection'}</span></div>
+             <div className="tb-v19-account-cell"><small>BYBIT API</small><strong className={conn?.state==='CONNECTED'?'green':'orange'}>{conn?.state==='CONNECTED'?'CONNECTED':conn?.state||'OFFLINE'}</strong><span>Authenticated account</span></div>
+             <div className="tb-v19-account-cell"><small>OPEN POSITIONS</small><strong>{pos ? pos.length:'—'}</strong><span>All owners · Exchange sync</span></div>
+             <div className="tb-v19-account-cell"><small>WALLET BALANCE</small><strong data-testid="hs-wallet">{has ? fmt(usdtBal) : '—'}</strong><span>USDT Wallet</span></div>
+             <div className="tb-v19-account-cell"><small>TOTAL EQUITY</small><strong data-testid="hs-equity">{has ? fmt(w.totalEquity) : '—'}</strong><span>USDT</span></div>
+             <div className="tb-v19-account-cell"><small>UNREALIZED P&amp;L</small><strong className={upnl === null?'':upnl<0?'red':upnl>0?'green':''} data-testid="hs-upnl">{upnl === null ? '—' : `${upnl>0?'+':''}${fmt(upnl,3)}`}</strong><span>USDT · Open positions</span></div>
+             <span hidden data-testid="hs-free">{has ? fmt(w.availableBalance) : '—'}</span>
+             <span hidden data-testid="hs-used">{has ? fmt(w.usedMargin) : '—'}</span>
            </div>
-          <nav className="tb-sub-nav" aria-label={currentGroup.name + ' tabs'}>
+          <nav className={"tb-sub-nav"+(currentGroup.name === 'Dashboard' ? ' tb-dashboard-shell-tabs' : '')} aria-label={currentGroup.name + ' tabs'}>
             {currentGroup.tabs.filter((t) => t.id !== 'symbol_trading' || activeTab === 'symbol_trading').map((t) => (
               <a key={t.id} href={t.id === 'symbol_trading' ? window.location.pathname : PAGE_PATHS[t.id]}
                 className={activeTab === t.id ? 'active' : undefined}
