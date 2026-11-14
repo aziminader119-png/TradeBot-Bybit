@@ -51,6 +51,12 @@ export default function OpenAlgoFutures({symbol,positionLines=[],onProtectionDra
    const el=container.current;if(!el)return;
    let instance:WidgetOverlay|null=null;
    let releaseDrag:(()=>void)|null=null;
+   let initialViewportPlaced=false;
+   const anchorNewest=()=>{
+     if(initialViewportPlaced||widget.current!==instance||!instance?.chart.primaryBars().length)return;
+     initialViewportPlaced=true;
+     instance.chart.timeScale.fitContent(100);
+   };
    const datafeed=new BybitOpenAlgoFeed(symbol);
    feed.current=datafeed;setFailure('');setChartLoaded(false);
    try{
@@ -72,11 +78,12 @@ export default function OpenAlgoFutures({symbol,positionLines=[],onProtectionDra
        // Never force reload during asynchronous layout restoration: it can
        // overwrite fresh history and leave a blank chart after a refresh.
        drawLines(activeWidget);
+       anchorNewest();
      }).catch(e=>{if(widget.current===activeWidget)setFailure(String(e?.message||e))});
      instance.on('data',(event:any)=>{
        if(widget.current!==activeWidget)return;
        if(event?.error){setFailure(String(event.error?.message||event.error));return;}
-       if((Array.isArray(event?.bars)&&event.bars.length>0)||(typeof event?.bars==='number'&&event.bars>0)){setFailure('');setChartLoaded(true);drawLines(activeWidget);}
+       if((Array.isArray(event?.bars)&&event.bars.length>0)||(typeof event?.bars==='number'&&event.bars>0)){setFailure('');setChartLoaded(true);drawLines(activeWidget);anchorNewest();}
      });
      releaseDrag=activeWidget.chart.subscribeDrag(()=>{},(id,price)=>{
        const line=linesRef.current.find(x=>x.id===id&&(x.id.includes(':exchange-tp')||x.id.includes(':exchange-sl')));
