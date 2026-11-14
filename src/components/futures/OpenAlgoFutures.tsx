@@ -42,7 +42,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[],onProtectionDra
        const options:PriceLineOptions={id:line.id,price:line.price,color:line.color||'#1463ff',
          lineWidth:1,dashed:line.type!=='entry',badge:line.type==='tp'?'TP':line.type==='sl'?'SL':line.side==='buy'?'BUY':'SHORT',
          leftLabel:line.label||'',closeButton:false,
-         ...(line.id.includes(':exchange-tp')||line.id.includes(':exchange-sl')?{cursor:'ns-resize' as const}:{})};
+         ...(/:(?:exchange|draft)-(?:tp|sl)$/.test(line.id)?{cursor:'ns-resize' as const}:{})};
        overlays.current.push(target.chart.addPriceLine(options));
      }catch(e){console.warn('[OpenAlgo] Position guide failed',e)}
    }
@@ -86,7 +86,7 @@ export default function OpenAlgoFutures({symbol,positionLines=[],onProtectionDra
        if((Array.isArray(event?.bars)&&event.bars.length>0)||(typeof event?.bars==='number'&&event.bars>0)){setFailure('');setChartLoaded(true);drawLines(activeWidget);anchorNewest();}
      });
      releaseDrag=activeWidget.chart.subscribeDrag(()=>{},(id,price)=>{
-       const line=linesRef.current.find(x=>x.id===id&&(x.id.includes(':exchange-tp')||x.id.includes(':exchange-sl')));
+       const line=linesRef.current.find(x=>x.id===id&&(/:(?:exchange|draft)-(?:tp|sl)$/.test(x.id)));
        if(!line||!Number.isFinite(price)||price<=0)return;
        const snapped=activeWidget.chart.snapPrice(activeWidget.chart.primaryPaneIndex(),price);
        drawLines(activeWidget); // Reset to exchange-confirmed price until popup approval.
