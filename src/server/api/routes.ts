@@ -1,6 +1,7 @@
 import path from 'node:path';
 import {ClosedHistoryCache, closedAccountScope} from './closedHistoryCache.ts';
 import {futuresRouter} from './futuresMarket.ts';
+import {partialCloseQuantity} from './futuresManual.ts';
 import {alertsRouter} from '../alerts/alertsApi.ts';
 import {voiceTtsRouter} from './voiceTts.ts';
 import { Router, Request, Response } from 'express';
@@ -8,7 +9,7 @@ import { BotDatabase } from '../db/database.ts';
 import { TradingEngine } from '../engine/tradingEngine.ts';
 import { AppWebSocketServer } from './wsServer.ts';
 import { BybitClient, BYBIT_REST_HOSTS, cleanCredential } from '../bybit/bybitClient.ts';
-import { DEFAULT_PUMP_SHORT, validatePumpShortSettings } from '../engine/pumpShort.ts';
+import { DEFAULT_PUMP_SHORT, validatePumpShortSettings, validatePumpPositionLimit } from '../engine/pumpShort.ts';
 import { PumpShortScanner } from '../engine/pumpShortScanner.ts';
 import { PumpShortTrader } from '../engine/pumpShortTrader.ts';
 import { DumpBuyTrader } from '../engine/dumpBuyTrader.ts';
@@ -76,8 +77,7 @@ apiRouter.post('/pump-short/settings', (req: Request, res: Response) => {
     validatePumpShortSettings(settings);
     if (!Number.isFinite(settings.positionNotionalUsdt) || settings.positionNotionalUsdt <= 0)
       throw new Error('Position size must be greater than zero USDT');
-    if (!Number.isInteger(settings.maxPositions) || settings.maxPositions < 1 || settings.maxPositions > 200)
-      throw new Error('Max positions must be between 1 and 200');
+    validatePumpPositionLimit(settings.maxPositions);
     db.updateSettings({ pumpShort: settings });
     wsServer.broadcastSnapshot();
     res.json({ success: true, settings });
@@ -449,14 +449,36 @@ apiRouter.post('/positions/:id/close', async (req: Request, res: Response) => {
   const p = db.getPosition(req.params.id);
   if (!p) return fail(res, new Error('Position not found'), 404);
   try {
+    // Reject partial requests before the BOT full-close branch.
+    const requestedPct=req.body?.percentage===undefined?100:Number(req.body.percentage);
+    if(req.body?.confirm!==true)throw Error('Explicit close confirmation is required');
+    if(!Number.isFinite(requestedPct)||requestedPct<=0||requestedPct>100)throw Error('Close percentage must be between 0 and 100');
     const c = db.getStrategyCycle(p.symbol);
     if (p.owner === 'bot' && c && c.cycleId === p.cycleId) {
+      if(requestedPct!==100)throw Error('Partial closes are not permitted for BOT-managed positions. Choose 100% or transfer management first');
       const r = await engine.strategy.manualCloseSide(p.symbol, p.side as 'Buy' | 'Sell');
       wsServer.broadcastSnapshot();
       return res.status(r.ok ? 200 : 409).json({ success: r.ok, message: r.message, error: r.ok ? undefined : r.message });
     }
     if (p.missingOnExchangeSince && !p.paper) return fail(res, new Error('Position is not on the exchange; nothing to close'), 409);
-    const i = await engine.strategy.manualCloseExternal(p.id);
+    if(req.body?.confirm!==true)return res.status(400).json({success:false,error:'Explicit close confirmation is required'});
+    const pct=req.body?.percentage===undefined?100:Number(req.body.percentage);
+    if(!Number.isFinite(pct)||pct<=0||pct>100)throw Error('Close percentage must be between 0 and 100');
+    let qty:number|undefined;
+    if(pct<100){
+      if(p.paper)throw Error('Partial close of a paper position is not supported');
+      if(p.owner==='bot')throw Error('Partial close of a BOT-managed position is blocked');
+      const client=engine.getClient();
+      if(!client.isTradingEnabled())throw Error('Real trading must be armed for partial close');
+      const live=(await client.getPositions(p.symbol)).filter(x=>x.symbol===p.symbol&&x.side===p.side&&Number(x.positionIdx)===(p.side==='Buy'?1:2)&&Number(x.size)>0);
+      if(live.length!==1)throw Error('Cannot verify exactly one exchange hedge position');
+      const size=Number(live[0].size),rules=await client.getFuturesContract(p.symbol);
+      const step=Number(rules.qtyStep),minimum=Number(rules.minQty);
+      if(!(size>0&&step>0&&minimum>0))throw Error('Exchange quantity rules unavailable');
+      if(Math.abs(size-p.size)>Math.max(step,1e-10))throw Error('Position quantity changed. Refresh before closing');
+      qty=partialCloseQuantity(size,pct,step,minimum);
+    }
+    const i = await engine.strategy.manualCloseExternal(p.id,qty);
     wsServer.broadcastSnapshot();
     res.status(i.status === 'FILLED' ? 200 : 409).json({ success: i.status === 'FILLED', intent: i, error: i.status === 'FILLED' ? undefined : `${i.status}: ${i.error || ''}` });
   } catch (err) { fail(res, err); }

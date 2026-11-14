@@ -104,3 +104,106 @@
 .ft-workspace .ft-book-row,.ft-workspace .ft-book-split .ft-book-row{font-size:14px;height:26px}
 .ft-workspace .ft-book-head,.ft-workspace .ft-book-split .ft-book-head{font-size:13px}
 .ft-workspace .ft-book-mid strong{font-size:20px}
+
+
+/* Single-symbol terminal: Bybit-inspired geometry, retaining TradeBot components and palette.
+   The positions/history/statistics components remain in normal document flow below. */
+.ft-workspace{padding:8px 10px 30px}
+.ft-workspace .ft-market-header{
+  display:grid;grid-template-columns:minmax(145px,1.35fr) minmax(145px,1fr) repeat(7,minmax(100px,1fr));
+  gap:10px 14px;align-items:center;min-height:62px;padding:5px 10px 10px;
+  margin-bottom:4px;border-bottom:1px solid var(--border);
+}
+.ft-workspace .ft-market-header>.ft-symbol h2{font-size:19px;line-height:24px}
+.ft-workspace .ft-market-header>.ft-symbol>span{font-size:11px}
+.ft-workspace .ft-market-header>.ft-last{font-size:22px;padding-right:0}
+.ft-workspace .ft-market-header>.ft-stat{min-width:0}
+.ft-workspace .ft-market-header>.ft-stat small{font-size:11px;color:var(--muted);white-space:nowrap}
+.ft-workspace .ft-market-header>.ft-stat strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft-workspace .ft-terminal-grid{
+  display:grid;grid-template-columns:minmax(0,1fr) 280px 300px;
+  align-items:stretch;gap:2px;background:var(--border);border:0;
+}
+.ft-workspace .ft-chart-shell,.ft-workspace .ft-book-column,.ft-workspace .ft-order-panel{
+  background:#101216;border:0;min-width:0;min-height:680px;
+}
+.ft-workspace .ft-chart-shell{grid-column:1;grid-row:1;position:relative;overflow:hidden}
+.ft-workspace .ft-book-column{grid-column:2;grid-row:1;display:block}
+.ft-workspace .ft-order-panel{grid-column:3;grid-row:1;padding:13px 12px}
+.ft-workspace .ft-orderbook{padding:12px 10px}
+.ft-workspace .ft-orderbook h3,.ft-workspace .ft-order-panel h3{
+  font-size:14px;font-weight:600;line-height:20px;margin-bottom:12px
+}
+.ft-workspace .ft-book-modes button.selected{box-shadow:0 2px 0 var(--blue)}
+.ft-workspace .ft-book-head{border-bottom:1px solid var(--border);padding-bottom:9px}
+.ft-workspace .ft-book-row{height:23px;font-size:12px}
+.ft-workspace .ft-book-mid{padding:12px 0}
+.ft-workspace .ft-order-panel>input{height:40px}
+.ft-workspace .ft-order-panel label{margin:16px 0 8px}
+.ft-workspace .ft-order-calc{gap:10px;margin:15px 0}
+.ft-workspace .ft-trade-buttons{gap:8px;margin:16px 0}
+.ft-workspace .ft-trade-buttons button{padding:12px 5px}
+.ft-workspace>.workspace.lp-botpos{margin:2px 0 0!important}
+.ft-workspace .ft-symbol-statistics{margin-top:2px}
+/* Preserve chart-first / market-depth-second / execution-third ordering on narrow screens. */
+@media(max-width:1420px){
+ .ft-workspace .ft-market-header{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .ft-workspace .ft-terminal-grid{grid-template-columns:minmax(0,1fr) 270px}
+ .ft-workspace .ft-chart-shell{grid-column:1;grid-row:1}
+ .ft-workspace .ft-book-column{grid-column:2;grid-row:1}
+ .ft-workspace .ft-order-panel{grid-column:1/-1;grid-row:2;min-height:0}
+}
+@media(max-width:760px){
+ .ft-workspace{padding:8px 6px 22px}
+ .ft-workspace .ft-market-header{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:7px 5px}
+ .ft-workspace .ft-terminal-grid{grid-template-columns:minmax(0,1fr)}
+ .ft-workspace .ft-chart-shell{grid-column:1;grid-row:1;min-height:500px}
+ .ft-workspace .ft-book-column{grid-column:1;grid-row:2;min-height:0}
+ .ft-workspace .ft-order-panel{grid-column:1;grid-row:3;min-height:0}
+}
+
+/* Exchange protection edit buttons appear over the chart; edits are never submitted before modal confirmation. */
+.ft-workspace .ft-protection-controls{position:absolute;z-index:8;right:16px;top:52px;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px;max-width:55%;pointer-events:none}
+.ft-workspace .ft-protection-controls button{pointer-events:auto;background:#20242ddd;color:#e8edf3;border:1px solid #3b424f;border-radius:4px;padding:5px 7px;font-size:10px;cursor:pointer;white-space:nowrap}
+.ft-workspace .ft-protection-controls button:hover{border-color:#1463ff}
+.ft-protection-review{display:flex;flex-direction:column;gap:12px}
+.ft-protection-review>div{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.ft-protection-review>div>span{color:var(--muted)}
+.ft-protection-review>div>strong{font-variant-numeric:tabular-nums}
+.ft-protection-review label{display:flex;flex-direction:column;gap:7px;font-size:12px}
+.ft-protection-review input{width:100%;border:1px solid #424b5b;border-radius:6px;background:#20242d;color:#fff;padding:10px;font-size:15px}
+.ft-protection-review p{color:var(--muted);font-size:11px;line-height:1.55}
+@media(max-width:600px){.ft-workspace .ft-protection-controls{top:42px;right:6px;max-width:75%}}
+
+/* Compact independent hedge order confirmation; existing BUY/SELL palette. */
+.ft-workspace .ft-trade-buttons{grid-template-columns:1fr 1fr}
+.ft-workspace .ft-trade-buttons .both{grid-column:1/-1;background:#202a40;border:1px solid #1463ff;color:#e9edf3}
+.ft-workspace .ft-trade-buttons .both:hover{background:#273c64}
+.tb-hedge-dialog{width:min(650px,100%)!important;max-width:650px!important}
+.tb-hedge-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.tb-hedge-leg{min-width:0;border:1px solid #343b49;background:#101216;border-radius:8px;padding:14px}
+.tb-hedge-leg h3{font-size:15px;margin:0 0 12px}
+.tb-hedge-leg h3.green{color:#0bba74}.tb-hedge-leg h3.red{color:#ff4761}
+.tb-hedge-leg>div{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-top:1px solid #292e37;font-size:11px}
+.tb-hedge-leg>div span{color:#89919e}.tb-hedge-leg>div strong{color:#e9edf3;font-variant-numeric:tabular-nums}
+.tb-hedge-results{padding:8px 12px;background:#20242d;border-radius:6px;font-size:12px}
+@media(max-width:600px){.tb-hedge-grid{grid-template-columns:1fr}}
+
+/* Single Coin: the execution panel is intentionally removed. Header controls open
+   the original validated BUY/SELL/BOTH confirmation dialogs. */
+.ft-workspace .ft-terminal-grid{grid-template-columns:minmax(0,1fr) 280px}
+.ft-workspace .ft-chart-shell{grid-column:1;grid-row:1}
+.ft-workspace .ft-book-column{grid-column:2;grid-row:1;border-right:0}
+.ft-workspace .ft-market-header{grid-template-columns:minmax(130px,1.25fr) auto minmax(140px,1fr) repeat(7,minmax(90px,1fr))}
+.ft-workspace .ft-header-orders{display:flex;align-items:center;gap:6px;min-width:0}
+.ft-workspace .ft-header-orders button{font-size:11px;font-weight:700;color:#fff;border:1px solid transparent;border-radius:5px;padding:8px 10px;white-space:nowrap;cursor:pointer}
+.ft-workspace .ft-header-orders .buy{background:#0bba74}
+.ft-workspace .ft-header-orders .short{background:#ff4761}
+.ft-workspace .ft-header-orders .both{background:#202a40;border-color:#1463ff}
+.ft-workspace .ft-header-orders button:disabled{opacity:.45;cursor:not-allowed}
+.ft-workspace .ft-overview-below{margin:12px 0;padding:14px;border:1px solid var(--border);background:#101216}
+.ft-workspace .ft-overview-below>h3{margin:0 0 12px;font-size:13px}
+.page-dashboard .ft-workspace .ft-overview-below .page-summary{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:16px!important}
+@media(max-width:1600px){.ft-workspace .ft-market-header{grid-template-columns:minmax(130px,1fr) auto repeat(3,minmax(115px,1fr))}}
+@media(max-width:900px){.ft-workspace .ft-market-header{grid-template-columns:repeat(2,minmax(0,1fr))}.ft-workspace .ft-header-orders{grid-column:1/-1;grid-row:2}.page-dashboard .ft-workspace .ft-overview-below .page-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:760px){.ft-workspace .ft-terminal-grid{grid-template-columns:minmax(0,1fr)}.ft-workspace .ft-chart-shell{grid-column:1;grid-row:1}.ft-workspace .ft-book-column{grid-column:1;grid-row:2}}

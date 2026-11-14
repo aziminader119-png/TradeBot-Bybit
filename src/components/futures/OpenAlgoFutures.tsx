@@ -22,45 +22,75 @@ const initialFrame=()=>{try{const value=localStorage.getItem(storageKey)||'5m';r
 type ChartLine=ReturnType<Widget['chart']['addPriceLine']>;
 type WidgetOverlay=Widget&{chart:Widget['chart']&{addPriceLine:(opt:PriceLineOptions)=>ChartLine;removePrimitive:(item:ChartLine)=>void}};
 
-export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string;positionLines?:OrderLine[]}) {
+export default function OpenAlgoFutures({symbol,positionLines=[],onProtectionDrag}:{symbol:string;positionLines?:OrderLine[];onProtectionDrag?:(id:string,newPrice:number)=>void}) {
  const container=useRef<HTMLDivElement>(null);
  const widget=useRef<WidgetOverlay|null>(null);
  const overlays=useRef<ChartLine[]>([]);
  const feed=useRef<BybitOpenAlgoFeed|null>(null);
  const [failure,setFailure]=useState('');
+ const [chartLoaded,setChartLoaded]=useState(false);
+ const dragHandler=useRef(onProtectionDrag);
+ dragHandler.current=onProtectionDrag;
+ const linesRef=useRef(positionLines);
+ linesRef.current=positionLines;
+ const drawLines=(target:WidgetOverlay)=>{
+   for(const old of overlays.current){try{target.chart.removePrimitive(old)}catch{}}
+   overlays.current=[];
+   for(const line of linesRef.current){
+     if(!(line.price>0&&Number.isFinite(line.price)))continue;
+     try{
+       const options:PriceLineOptions={id:line.id,price:line.price,color:line.color||'#1463ff',
+         lineWidth:1,dashed:line.type!=='entry',badge:line.type==='tp'?'TP':line.type==='sl'?'SL':line.side==='buy'?'BUY':'SHORT',
+         leftLabel:line.label||'',closeButton:false,
+         ...(/:(?:exchange|draft)-(?:tp|sl)$/.test(line.id)?{cursor:'ns-resize' as const}:{})};
+       overlays.current.push(target.chart.addPriceLine(options));
+     }catch(e){console.warn('[OpenAlgo] Position guide failed',e)}
+   }
+ };
  useEffect(()=>{
    const el=container.current;if(!el)return;
    let instance:WidgetOverlay|null=null;
+   let releaseDrag:(()=>void)|null=null;
+   let initialViewportPlaced=false;
+   const anchorNewest=()=>{
+     if(initialViewportPlaced||widget.current!==instance||!instance?.chart.primaryBars().length)return;
+     initialViewportPlaced=true;
+     instance.chart.timeScale.fitContent(100);
+   };
    const datafeed=new BybitOpenAlgoFeed(symbol);
-   feed.current=datafeed;setFailure('');
+   feed.current=datafeed;setFailure('');setChartLoaded(false);
    try{
      instance=createWidget(el,{
        feed:datafeed,symbol,exchange:'BYBIT',interval:initialFrame(),
        intervals,chartType:'candlestick',theme,persist:'tradebot-v19-'+symbol,
+       navigation:{defaultVisibleBars:100,defaultBarSpacing:8},
        priceOnlyAutoScale:true, // Position/TP/SL guides must not stretch the candle price axis.
        topbar:true,rail:true,statusline:true,indicators:true,
        branding:false, // Hide optional OpenAlgo corner logo; preserve license notices in dependencies.
        // No OrderFeed, no on-chart execution, no drag-to-trade.
      }) as WidgetOverlay;
      widget.current=instance;
-     // Restore happens asynchronously. Reset the legacy manual vertical range after
-     // widget restoration, not before it; otherwise persisted Y-zoom wins again.
-     // One-time per symbol so later intentional manual zooms remain possible.
-     const scaleMigration='tradebot:openalgo:scale-fixed-v1:'+symbol;
      const activeWidget=instance;
      activeWidget.chart.setBranding(false);
-     void activeWidget.ready.then(async()=>{
+     void activeWidget.ready.then(()=>{
        if(widget.current!==activeWidget)return;
-       activeWidget.chart.setBranding(false);
        activeWidget.chart.setPriceOnlyAutoScale(true);
-       try{
-         if(localStorage.getItem(scaleMigration)!=='1'){
-           await activeWidget.reload();
-           if(widget.current!==activeWidget)return;
-           activeWidget.chart.resetScale();
-           localStorage.setItem(scaleMigration,'1');
-         }
-       }catch(e){console.warn('[OpenAlgo] Auto-fit migration skipped',e)}
+       // Never force reload during asynchronous layout restoration: it can
+       // overwrite fresh history and leave a blank chart after a refresh.
+       drawLines(activeWidget);
+       anchorNewest();
+     }).catch(e=>{if(widget.current===activeWidget)setFailure(String(e?.message||e))});
+     instance.on('data',(event:any)=>{
+       if(widget.current!==activeWidget)return;
+       if(event?.error){setFailure(String(event.error?.message||event.error));return;}
+       if((Array.isArray(event?.bars)&&event.bars.length>0)||(typeof event?.bars==='number'&&event.bars>0)){setFailure('');setChartLoaded(true);drawLines(activeWidget);anchorNewest();}
+     });
+     releaseDrag=activeWidget.chart.subscribeDrag(()=>{},(id,price)=>{
+       const line=linesRef.current.find(x=>x.id===id&&(/:(?:exchange|draft)-(?:tp|sl)$/.test(x.id)));
+       if(!line||!Number.isFinite(price)||price<=0)return;
+       const snapped=activeWidget.chart.snapPrice(activeWidget.chart.primaryPaneIndex(),price);
+       drawLines(activeWidget); // Reset to exchange-confirmed price until popup approval.
+       dragHandler.current?.(id,snapped);
      });
      instance.on('interval',()=>{try{localStorage.setItem(storageKey,instance?.interval()||'5m')}catch{}});
      window.dispatchEvent(new CustomEvent('ft-chart-ok',{detail:{symbol}}));
@@ -71,26 +101,15 @@ export default function OpenAlgoFutures({symbol,positionLines=[]}:{symbol:string
    return()=>{
      for(const line of overlays.current){try{instance?.chart.removePrimitive(line)}catch{}}
      overlays.current=[];widget.current=null;feed.current=null;
-     instance?.destroy();datafeed.destroy();
+     releaseDrag?.();instance?.destroy();datafeed.destroy();
    };
  },[symbol]);
  useEffect(()=>{
-   const chart=widget.current?.chart;
-   if(!chart)return;
-   for(const old of overlays.current){try{chart.removePrimitive(old)}catch{}}
-   overlays.current=[];
-   for(const line of positionLines){
-     if(!(line.price>0&&Number.isFinite(line.price)))continue;
-     try{
-       const options:PriceLineOptions={id:line.id,price:line.price,color:line.color||'#1463ff',
-         lineWidth:1,dashed:line.type!=='entry',badge:line.side==='buy'?'BUY':'SHORT',
-         leftLabel:line.label||'',closeButton:false};
-       overlays.current.push(chart.addPriceLine(options));
-     }catch{}
-   }
- },[positionLines,symbol]);
+   if(widget.current&&chartLoaded)drawLines(widget.current);
+ },[positionLines,chartLoaded]);
  return <div className="tb-openalgo-wrap" data-testid="openalgo-futures-chart">
    <div ref={container} className="tb-openalgo-mount"/>
+   <button type="button" className="tb-openalgo-live" onClick={()=>{try{widget.current?.chart.timeScale.fitContent(100)}catch(e){console.warn('[OpenAlgo] Go to Live failed',e)}}} aria-label="Return to latest candle">Go to Live</button>
    {failure&&<div className="tb-openalgo-error" role="alert">{failure}</div>}
  </div>;
 }

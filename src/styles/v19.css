@@ -668,3 +668,61 @@ body .t-modal-bg .t-modal .t-btn:not(.short){border-radius:999px!important}
 body .t-modal-bg .t-modal .pos-buy,body .t-modal-bg .t-modal .t-up{color:#0bba74!important}
 body .t-modal-bg .t-modal .pos-short,body .t-modal-bg .t-modal .t-down{color:#ff4761!important}
 @media(max-width:600px){.tb-v19-order-dialog{padding:19px!important;border-radius:16px!important}.tb-v19-order-actions{gap:10px}.tb-v19-order-title h2{font-size:19px!important}body .t-modal-bg .t-modal{padding:17px!important}}
+
+/* Market BUY/SELL confirmation: compact reference layout, NEXORA colors, always requires Confirm. */
+.tb-v19-order-dialog{
+  width:min(465px,100%)!important;max-width:465px!important;
+  padding:24px!important;border-radius:16px!important;gap:15px!important;
+  background:#161920!important;border:1px solid #2d3340!important;
+  box-shadow:0 24px 72px #000b!important;
+}
+.tb-v19-order-title{padding-bottom:5px!important}
+.tb-v19-order-title h2{font-size:17px!important;font-weight:700!important;letter-spacing:0!important}
+.tb-v19-order-title button{font-size:24px!important}
+.tb-v19-order-control{gap:12px!important}
+.tb-v19-order-modes{padding:3px!important}
+.tb-v19-order-modes button{min-height:32px!important}
+.tb-v19-order-field{font-size:12px!important}
+.tb-v19-order-field input{min-height:43px!important;font-size:15px!important}
+.tb-v19-order-summary{padding:0!important;border-top:0!important}
+.tb-v19-order-summary>div{min-height:31px!important;padding:6px 0!important;gap:12px!important}
+.tb-v19-order-summary span{font-size:12px!important;color:#848e9c!important}
+.tb-v19-order-summary strong{font-size:12px!important;font-weight:700!important}
+.tb-v19-order-risk{padding:10px 12px!important;font-size:11px!important;line-height:1.55!important}
+.tb-v19-order-actions{gap:14px!important;margin-top:2px!important}
+.tb-v19-order-actions button{height:45px!important;font-size:13px!important}
+.tb-v19-order-actions button.buy{background:#0bba74!important}
+.tb-v19-order-actions button.sell{background:#ff4761!important}
+.tb-v19-order-actions button.cancel{background:#333742!important;border:1px solid #333742!important;color:#fff!important}
+.tb-v19-order-actions button.cancel:hover{background:#3d424f!important}
+@media(max-width:600px){.tb-v19-order-dialog{padding:20px!important}.tb-v19-order-title h2{font-size:16px!important}}
+
+/* The example's 0/25/50/75/100 slider nodes are actual accessible controls. */
+.tb-v19-close-slider-stops{pointer-events:none!important}
+.tb-v19-close-slider-stops button{
+  pointer-events:auto;position:absolute;transform:translate(-50%,-4px);
+  width:12px;height:12px;padding:0;border-radius:50%;
+  border:2px solid #6d7786;background:#171d26;
+  cursor:pointer;z-index:1;
+}
+.tb-v19-close-slider-stops button.filled{border-color:#1463ff}
+.tb-v19-close-slider-stops button[aria-pressed="true"]{background:#1463ff;border-color:#9bc0ff}
+.tb-v19-close-slider-stops button:first-child{transform:translate(0,-4px)}
+.tb-v19-close-slider-stops button:last-child{transform:translate(-100%,-4px)}
+.tb-v19-close-slider-stops button:focus-visible{outline:2px solid #8fb7ff;outline-offset:3px}
+
+/* Always-visible batch action for selected table rows. */
+.tb-v19-selection-bar{position:fixed;z-index:9000;left:50%;bottom:18px;transform:translateX(-50%);display:flex;align-items:center;gap:13px;max-width:calc(100vw - 24px);padding:10px 14px;border:1px solid #3b4451;border-radius:12px;background:#161920;box-shadow:0 15px 45px #000b;color:#e9edf3;white-space:nowrap}
+.tb-v19-selection-count{color:#9aa6b7;font-size:12px}.tb-v19-selection-count strong{color:#fff}
+.tb-v19-selection-close{border:0;border-radius:7px;background:#ff4761;color:white;font-size:12px;font-weight:750;padding:10px 16px;cursor:pointer}
+.tb-v19-selection-close:hover{background:#f13651}
+.tb-v19-selection-clear{border:1px solid #485160;border-radius:7px;background:#20242d;color:#e9edf3;font-size:12px;font-weight:650;padding:9px 12px;cursor:pointer}
+.tb-v19-selection-clear:hover{background:#303744}
+.tb-v19-bulk-rows{display:flex;flex-direction:column;gap:0;max-height:40vh;overflow-y:auto}
+.tb-v19-bulk-row{display:grid;grid-template-columns:minmax(0,1.25fr) 60px minmax(65px,.8fr) minmax(95px,1fr);gap:12px;align-items:center;border-bottom:1px solid #292e37;padding:9px 3px;font-size:12px}
+.tb-v19-bulk-row>strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tb-v19-bulk-row>span:last-child{text-align:right;font-variant-numeric:tabular-nums}
+.tb-v19-bulk-total{display:flex;justify-content:space-between;gap:15px;border-top:1px solid #292e37;padding-top:12px;font-size:13px}
+.tb-v19-bulk-warning{color:#9aa6b7!important;font-size:11px!important}
+.tb-v19-bulk-dialog{max-width:590px!important}
+@media(max-width:600px){.tb-v19-selection-bar{gap:8px;bottom:8px;padding:9px}.tb-v19-selection-close{padding:9px;font-size:11px}.tb-v19-selection-clear{padding:8px;font-size:11px}.tb-v19-bulk-row{grid-template-columns:minmax(0,1fr) 47px minmax(60px,1fr);gap:5px}.tb-v19-bulk-row>span:last-child{grid-column:2/4;text-align:right}}

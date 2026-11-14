@@ -165,7 +165,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
       <div className="lp-toolbar">
         <div className="tb-left">
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
-          <BulkCloseSelected positions={checkedPositions} onClosed={ids=>setChecked(prev=>prev.filter(id=>!ids.includes(id)))}/>
+          <BulkCloseSelected positions={checkedPositions} onClosed={ids=>setChecked(prev=>prev.filter(id=>!ids.includes(id)))} onClear={()=>setChecked([])}/>
           {checked.length>0&&<button type="button" className="tb-v19-clear-selection" onClick={()=>setChecked([])}>Clear selection</button>}
           {view === 'aged' && <label>Open longer than (days): <input type="number" min="0" step="0.5" value={minHours / 24} style={{ width: 80 }} onChange={(e) => { setMinHours(Math.max(0, Number(e.target.value) || 0) * 24); setMaxHours(null); setPage(1); }} /></label>}
         </div>
@@ -225,7 +225,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
                   <td data-col="open"><DateTime ts={opened} /></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
                   {risk && <td className={view === 'margin' ? '' : tone(movePct(p))} data-col="risk">{view === 'margin' ? <MarginCell p={p} /> : num(movePct(p), 2) + '%'}</td>}
-                  <td data-col="actions"><div className="tb-v19-row-actions"><PositionCloseButton id={p.id} symbol={p.symbol} side={p.side} quantity={p.size} unrealizedPnl={p.unrealizedPnl}/><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} pump={p.side === 'Sell' ? pumpBySymbol.get(p.symbol) : undefined} refresh={pumpOwnership.refresh} />{p.owner === 'bot' && <button type="button" className="row-act" onClick={onGoCycles}>Cycle</button>}</div></td>
+                  <td data-col="actions"><div className="tb-v19-row-actions"><PositionCloseButton id={p.id} symbol={p.symbol} side={p.side} quantity={p.size} unrealizedPnl={p.unrealizedPnl} owner={p.owner}/><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} pump={p.side === 'Sell' ? pumpBySymbol.get(p.symbol) : undefined} refresh={pumpOwnership.refresh} />{p.owner === 'bot' && <button type="button" className="row-act" onClick={onGoCycles}>Cycle</button>}</div></td>
                 </tr>
               ))}
           </tbody>

@@ -27,6 +27,9 @@ const COOKIE = 'tb_session';
 const SESSION_IDLE_MS = 12 * 60 * 60 * 1000;
 const MAX_BODY = 16 * 1024;
 const MIN_PASSWORD = 10;
+const LOGIN_EMAIL=(process.env.TRADEBOT_LOGIN_EMAIL||'naderazimi274@gmail.com').trim().toLowerCase();
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+if(!EMAIL_RE.test(LOGIN_EMAIL))throw Error('TRADEBOT_LOGIN_EMAIL must be a valid email address');
 
 interface Session { id: string; csrf: string; created: number; lastSeen: number }
 interface StoredAuth {
@@ -323,7 +326,7 @@ export class AuthGate {
     // ----- auth endpoints (no session required) -----
     if (p === '/api/auth/status' && method === 'GET') {
       const s = this.getSession(req);
-      return this.send(res, 200, { authenticated: Boolean(s), setupRequired: !this.hasPassword(), usernameRequired: Boolean(this.readAuth()?.username), csrfToken: s ? s.csrf : undefined });
+      return this.send(res, 200, { authenticated: Boolean(s), setupRequired: !this.hasPassword(), usernameRequired: false, emailRequired:true, csrfToken: s ? s.csrf : undefined });
     }
 
     if (p === '/api/auth/setup' && method === 'POST') {
@@ -352,14 +355,15 @@ export class AuthGate {
       if (!this.hasPassword()) return this.send(res, 409, { error: 'Setup required' });
       const rec = this.readAuth();
       // a username is checked only once the administrator has set one (existing installs keep password-only login)
-      const userOk = !rec?.username || (typeof body.username === 'string' && body.username.trim().toLowerCase() === rec.username.toLowerCase());
+      // Email identity is a server-controlled account allowlist, never trusted from the frontend.
+      const userOk = typeof body.email==='string' && body.email.trim().toLowerCase()===LOGIN_EMAIL;
       if (typeof body.password !== 'string' || !this.verifyPassword(body.password) || !userOk) {
         const cur = this.failures.get(ip) || { count: 0, until: 0 };
         cur.count++;
         if (cur.count >= 5) { cur.until = Date.now() + 15 * 60 * 1000; cur.count = 0; }
         this.failures.set(ip, cur);
         this.audit('login', req, false);
-        return this.send(res, 401, { error: rec?.username ? 'Invalid username or password' : 'Invalid password' });
+        return this.send(res, 401, { error: 'Invalid email or password' });
       }
       if (rec?.totp) {
         // password verified: a second step with the authenticator (or a recovery code) is required

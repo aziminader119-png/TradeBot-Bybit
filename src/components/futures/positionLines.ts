@@ -14,6 +14,21 @@ export function positionLines(symbol:string,state:BotStateSummary|null,exchange:
   lines.push({id,price:p.entryPrice,type:'entry',side,color,label:name+' · Qty '+p.size,pnl:typeof pnl==='number'&&Number.isFinite(pnl)?pnl:undefined});
   if(positive(p.takeProfit))lines.push({id:id+':exchange-tp',price:p.takeProfit,type:'tp',side,color:'#39AA77',label:name+' TP · Bybit · '+p.takeProfit});
   if(positive(p.stopLoss))lines.push({id:id+':exchange-sl',price:p.stopLoss,type:'sl',side,color:'#ED4F5D',label:name+' SL · Bybit · '+p.stopLoss});
+  // A missing native protection still gets a draggable DRAFT guide. This is NOT
+  // an order: only the authenticated confirmation dialog can write to Bybit.
+  // Never draw drafts from locally cached positions or bot-managed cycles.
+  if(exchange!==null && matching?.owner!=='bot'){
+   const anchor=positive(mark)?mark:p.entryPrice;
+   const direction=p.side==='Buy'?1:-1;
+   if(!positive(p.takeProfit)){
+    const draft=anchor*(1+direction*0.02);
+    if(positive(draft))lines.push({id:id+':draft-tp',price:draft,type:'tp',side,color:'#39AA77',label:name+' SET TP · drag to choose · NOT SAVED'});
+   }
+   if(!positive(p.stopLoss)){
+    const draft=anchor*(1-direction*0.02);
+    if(positive(draft))lines.push({id:id+':draft-sl',price:draft,type:'sl',side,color:'#ED4F5D',label:name+' SET SL · drag to choose · NOT SAVED'});
+   }
+  }
   const cycle=state.strategyCycles?.[symbol],cfg=state.strategies?.[symbol],leg=cycle?.sides?.[p.side],settings=p.side==='Buy'?cfg?.buy:cfg?.sell;
   if(matching?.owner==='bot'&&cycle?.cycleId===matching.cycleId&&cycle.status!=='CLOSED'&&leg?.tpEnabled&&positive(leg.avgEntryPrice)&&positive(settings?.tpPct)){
    const tp=leg.avgEntryPrice*(1+(p.side==='Buy'?1:-1)*settings.tpPct/100);

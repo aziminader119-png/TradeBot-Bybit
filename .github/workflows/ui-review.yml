@@ -1,9 +1,9 @@
 name: TradeBot UI Review - Build and Tests
 on:
   push:
-    branches: [ui-topnav-unified-20261112]
+    branches: [ui-topnav-unified-20261112, ui-bybit-single-layout-20261114]
   pull_request:
-    branches: [voice-alert-settings-20261111]
+    branches: [voice-alert-settings-20261111, ui-topnav-unified-20261112]
   workflow_dispatch:
 jobs:
   validate:

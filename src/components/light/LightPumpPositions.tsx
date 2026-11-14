@@ -22,7 +22,7 @@ function asRow(t: PumpTrade): ReportRow {
   return { id: t.id, symbol: t.symbol, side: 'Sell', size: t.qty, value: t.qty * t.entryPrice,
     entry: t.entryPrice, mark: t.markPrice, exit: t.exitPrice, target: t.target,
     waveLow: t.waveLow, waveHigh: t.waveHigh, opened: t.entryAt, closed: t.exitAt,
-    pnl, status: t.note ? `${t.status} — ${t.note}` : t.status };
+    pnl, status: t.status === 'REVIEW' ? 'REVIEW' : (t.note ? `${t.status} — ${t.note}` : t.status) };
 }
 
 export function LightPumpPositions() {

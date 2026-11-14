@@ -136,7 +136,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
       <div className="lp-toolbar">
         <div className="tb-left">
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
-          <BulkCloseSelected positions={checkedPositions} onClosed={ids=>setChecked(prev=>prev.filter(id=>!ids.includes(id)))}/>
+          <BulkCloseSelected positions={checkedPositions} onClosed={ids=>setChecked(prev=>prev.filter(id=>!ids.includes(id)))} onClear={()=>setChecked([])}/>
           {checked.length>0&&<button type="button" className="tb-v19-clear-selection" onClick={()=>setChecked([])}>Clear selection</button>}
           <button className="tb-bulk" type="button" disabled title="Not available in this version" data-testid="bulk-release">Bulk Release All From BOT</button>
         </div>
@@ -191,7 +191,7 @@ export const LightBotPositions: React.FC<{ state: BotStateSummary | null; onGoCy
                   <td data-col="open"><DateTime ts={opened}/></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
                   <td data-col="mart">{p.martTriggered ? 'MART' : '—'}</td>
-                  <td data-col="actions"><div className="tb-v19-row-actions"><PositionCloseButton id={p.id} symbol={p.symbol} side={p.side} quantity={p.size} unrealizedPnl={p.unrealizedPnl}/><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} refresh={pumpOwnership.refresh}/><button type="button" className="row-act" onClick={onGoCycles}>Cycle</button></div></td>
+                  <td data-col="actions"><div className="tb-v19-row-actions"><PositionCloseButton id={p.id} symbol={p.symbol} side={p.side} quantity={p.size} unrealizedPnl={p.unrealizedPnl} owner={p.owner}/><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} refresh={pumpOwnership.refresh}/><button type="button" className="row-act" onClick={onGoCycles}>Cycle</button></div></td>
                 </tr>
               ))}
           </tbody>

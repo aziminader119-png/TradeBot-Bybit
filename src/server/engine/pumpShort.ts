@@ -38,6 +38,13 @@ export function validatePumpShortSettings(settings: PumpShortSettings): void {
     throw new Error('retracementPct must be greater than 0 and at most 100');
 }
 
+/** Maximum concurrent/pending Pump Short slots accepted by the API. Ledger history is not truncated. */
+export const MAX_PUMP_POSITIONS = 1000;
+export function validatePumpPositionLimit(value:number):void{
+  if(!Number.isInteger(value)||value<1||value>MAX_PUMP_POSITIONS)
+    throw Error(`Max Pump Short positions must be between 1 and ${MAX_PUMP_POSITIONS}`);
+}
+
 /** The largest chronological low-to-LATER-high rise within the lookback window. */
 export function findPumpWave(candles: readonly PumpCandle[], nowMs: number, settings: PumpShortSettings): PumpWave | null {
   validatePumpShortSettings(settings);

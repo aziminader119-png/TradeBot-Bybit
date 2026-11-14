@@ -806,6 +806,26 @@ export class BybitClient {
     return res.retCode === 0;
   }
 
+  /** Fresh Bybit mark price for safe MarkPrice-triggered TP/SL validation. */
+  public async getFuturesMarkPrice(symbol:string):Promise<number>{
+    const response=await this.request('GET','/v5/market/tickers',{category:'linear',symbol},false);
+    if(response.retCode!==0)throw retError(response,'/v5/market/tickers');
+    const entry=(response.result?.list||[]).find((row:any)=>row.symbol===symbol);
+    const value=Number(entry?.markPrice);
+    if(!Number.isFinite(value)||value<=0)throw Error('Fresh Bybit mark price unavailable');
+    return value;
+  }
+
+  /** Confirmed user-only protection edit. Never called by the bot strategy. */
+  public async setExternalTradingStop(symbol:string,positionIdx:1|2,field:'takeProfit'|'stopLoss',value:number):Promise<void>{
+    this.assertTrading('external-tpsl');
+    if(!Number.isFinite(value)||value<=0||![1,2].includes(positionIdx))throw Error('Invalid protection price or hedge side');
+    const params:Record<string,string|number>={category:'linear',symbol,positionIdx,tpslMode:'Full',tpTriggerBy:'MarkPrice',slTriggerBy:'MarkPrice'};
+    params[field]=String(value);
+    const result=await this.request('POST','/v5/position/trading-stop',params,true);
+    if(result.retCode!==0)throw retError(result,'/v5/position/trading-stop');
+  }
+
   // Phase 1: setTradingStop (native Bybit TP/SL) was removed. The bot never creates or
   // modifies exchange TP/SL orders; existing Bybit TP orders are left untouched.
 }
