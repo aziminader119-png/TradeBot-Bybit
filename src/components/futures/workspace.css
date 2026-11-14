@@ -104,3 +104,60 @@
 .ft-workspace .ft-book-row,.ft-workspace .ft-book-split .ft-book-row{font-size:14px;height:26px}
 .ft-workspace .ft-book-head,.ft-workspace .ft-book-split .ft-book-head{font-size:13px}
 .ft-workspace .ft-book-mid strong{font-size:20px}
+
+
+/* Single-symbol terminal: Bybit-inspired geometry, retaining TradeBot components and palette.
+   The positions/history/statistics components remain in normal document flow below. */
+.ft-workspace{padding:8px 10px 30px}
+.ft-workspace .ft-market-header{
+  display:grid;grid-template-columns:minmax(145px,1.35fr) minmax(145px,1fr) repeat(7,minmax(100px,1fr));
+  gap:10px 14px;align-items:center;min-height:62px;padding:5px 10px 10px;
+  margin-bottom:4px;border-bottom:1px solid var(--border);
+}
+.ft-workspace .ft-market-header>.ft-symbol h2{font-size:19px;line-height:24px}
+.ft-workspace .ft-market-header>.ft-symbol>span{font-size:11px}
+.ft-workspace .ft-market-header>.ft-last{font-size:22px;padding-right:0}
+.ft-workspace .ft-market-header>.ft-stat{min-width:0}
+.ft-workspace .ft-market-header>.ft-stat small{font-size:11px;color:var(--muted);white-space:nowrap}
+.ft-workspace .ft-market-header>.ft-stat strong{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ft-workspace .ft-terminal-grid{
+  display:grid;grid-template-columns:minmax(0,1fr) 280px 300px;
+  align-items:stretch;gap:2px;background:var(--border);border:0;
+}
+.ft-workspace .ft-chart-shell,.ft-workspace .ft-book-column,.ft-workspace .ft-order-panel{
+  background:#101216;border:0;min-width:0;min-height:680px;
+}
+.ft-workspace .ft-chart-shell{grid-column:1;grid-row:1;position:relative;overflow:hidden}
+.ft-workspace .ft-book-column{grid-column:2;grid-row:1;display:block}
+.ft-workspace .ft-order-panel{grid-column:3;grid-row:1;padding:13px 12px}
+.ft-workspace .ft-orderbook{padding:12px 10px}
+.ft-workspace .ft-orderbook h3,.ft-workspace .ft-order-panel h3{
+  font-size:14px;font-weight:600;line-height:20px;margin-bottom:12px
+}
+.ft-workspace .ft-book-modes button.selected{box-shadow:0 2px 0 var(--blue)}
+.ft-workspace .ft-book-head{border-bottom:1px solid var(--border);padding-bottom:9px}
+.ft-workspace .ft-book-row{height:23px;font-size:12px}
+.ft-workspace .ft-book-mid{padding:12px 0}
+.ft-workspace .ft-order-panel>input{height:40px}
+.ft-workspace .ft-order-panel label{margin:16px 0 8px}
+.ft-workspace .ft-order-calc{gap:10px;margin:15px 0}
+.ft-workspace .ft-trade-buttons{gap:8px;margin:16px 0}
+.ft-workspace .ft-trade-buttons button{padding:12px 5px}
+.ft-workspace>.workspace.lp-botpos{margin:2px 0 0!important}
+.ft-workspace .ft-symbol-statistics{margin-top:2px}
+/* Preserve chart-first / market-depth-second / execution-third ordering on narrow screens. */
+@media(max-width:1420px){
+ .ft-workspace .ft-market-header{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .ft-workspace .ft-terminal-grid{grid-template-columns:minmax(0,1fr) 270px}
+ .ft-workspace .ft-chart-shell{grid-column:1;grid-row:1}
+ .ft-workspace .ft-book-column{grid-column:2;grid-row:1}
+ .ft-workspace .ft-order-panel{grid-column:1/-1;grid-row:2;min-height:0}
+}
+@media(max-width:760px){
+ .ft-workspace{padding:8px 6px 22px}
+ .ft-workspace .ft-market-header{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:7px 5px}
+ .ft-workspace .ft-terminal-grid{grid-template-columns:minmax(0,1fr)}
+ .ft-workspace .ft-chart-shell{grid-column:1;grid-row:1;min-height:500px}
+ .ft-workspace .ft-book-column{grid-column:1;grid-row:2;min-height:0}
+ .ft-workspace .ft-order-panel{grid-column:1;grid-row:3;min-height:0}
+}
