@@ -696,3 +696,17 @@ body .t-modal-bg .t-modal .pos-short,body .t-modal-bg .t-modal .t-down{color:#ff
 .tb-v19-order-actions button.cancel{background:#333742!important;border:1px solid #333742!important;color:#fff!important}
 .tb-v19-order-actions button.cancel:hover{background:#3d424f!important}
 @media(max-width:600px){.tb-v19-order-dialog{padding:20px!important}.tb-v19-order-title h2{font-size:16px!important}}
+
+/* The example's 0/25/50/75/100 slider nodes are actual accessible controls. */
+.tb-v19-close-slider-stops{pointer-events:none!important}
+.tb-v19-close-slider-stops button{
+  pointer-events:auto;position:absolute;transform:translate(-50%,-4px);
+  width:12px;height:12px;padding:0;border-radius:50%;
+  border:2px solid #6d7786;background:#171d26;
+  cursor:pointer;z-index:1;
+}
+.tb-v19-close-slider-stops button.filled{border-color:#1463ff}
+.tb-v19-close-slider-stops button[aria-pressed="true"]{background:#1463ff;border-color:#9bc0ff}
+.tb-v19-close-slider-stops button:first-child{transform:translate(0,-4px)}
+.tb-v19-close-slider-stops button:last-child{transform:translate(-100%,-4px)}
+.tb-v19-close-slider-stops button:focus-visible{outline:2px solid #8fb7ff;outline-offset:3px}
