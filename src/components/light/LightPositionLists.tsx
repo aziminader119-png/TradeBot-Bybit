@@ -8,7 +8,7 @@ import { AGED_DEFAULT_HOURS, inPositionView, savedThresholds, viewThreshold } fr
 import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
 import { syncedPositions } from './LightShell.tsx';
-import { Pager, RowsPicker, SortTh, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
+import { Pager, RowsPicker, SortTh, compactTargetPrice, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
 import { PositionCloseButton, PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
 
 // Read-only lists. No trading or ownership mutations; data comes from the existing synced snapshot.
@@ -198,7 +198,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
                   <td data-col="entry">{price(p.entryPrice)}</td>
                   <td data-col="mark">{price(p.markPrice)}</td>
                   <td data-col="liq"><Liq value={p.liqPrice} fmt={price} /></td>
-                  <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? price(tp.price) : '—'}</span>
+                  <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? compactTargetPrice(tp.price) : '—'}</span>
                     <span className="tb-cell-secondary">SL&nbsp; —</span></td>
                   <td className={tone(p.unrealizedPnl)} data-col="upnl">{Number.isFinite(p.unrealizedPnl) ? `${p.unrealizedPnl > 0 ? '+' : ''}${num(p.unrealizedPnl, 4)}` : '—'}</td>
                   <td className={tone(movePct(p))} data-col="upnlPct">{movePct(p) === null ? '—' : `${movePct(p)! > 0 ? '+' : ''}${num(movePct(p), 2)}%`}</td>
