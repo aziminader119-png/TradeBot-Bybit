@@ -1,0 +1,42 @@
+/* TradeBot Pro V19 secure access page */
+.tb-auth-v19{min-height:100vh;position:relative;overflow:hidden;background:#101216;color:#e9edf3;font-family:Inter,Arial,Helvetica,sans-serif;display:flex;flex-direction:column}
+.tb-auth-v19 *{box-sizing:border-box}
+.tb-auth-glow{pointer-events:none;position:absolute;width:650px;height:650px;border-radius:50%;filter:blur(85px);opacity:.1}
+.tb-auth-glow-left{left:-350px;top:4%;background:#1463ff}
+.tb-auth-glow-right{right:-410px;bottom:-300px;background:#1463ff}
+.tb-auth-topbar,.tb-auth-footer{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;padding:25px 48px}
+.tb-auth-topbar{border-bottom:1px solid #292e37}
+.tb-auth-wordmark{display:flex;gap:11px;align-items:center;color:#e9edf3;font-size:17px;letter-spacing:-.5px}
+.tb-auth-wordmark em{font-style:normal;color:#1463ff}
+.tb-auth-brand-icon{display:grid;place-items:center;width:32px;height:32px;border:2px solid #1463ff;border-radius:8px;color:#fff;font-size:16px;font-weight:800}
+.tb-auth-top-status{font-size:10px;letter-spacing:1px;font-weight:700;color:#89919e;display:flex;align-items:center;gap:9px}
+.tb-auth-status-dot{width:7px;height:7px;border-radius:50%;background:#0bba74;box-shadow:0 0 0 4px #0bba7418}
+.tb-auth-center{position:relative;z-index:1;width:100%;max-width:450px;margin:auto;display:flex;flex-direction:column;gap:28px;padding:56px 20px}
+.tb-auth-hero{text-align:center}.tb-auth-eyebrow{display:flex;align-items:center;gap:12px;justify-content:center;font-weight:750;font-size:10px;letter-spacing:1.4px;color:#89919e}
+.tb-auth-eyebrow-line{height:1px;width:24px;background:#1463ff}
+.tb-auth-hero h1{font-size:37px;letter-spacing:-1.6px;font-weight:760;margin:17px 0 6px;color:#f1f4f9}
+.tb-auth-hero h1 span{color:#1463ff}.tb-auth-hero p{font-size:13px;color:#98a2b2;margin:0}
+.tb-auth-panel{border:1px solid #303744;border-radius:10px;background:#161920;box-shadow:0 14px 55px #0004;padding:29px}
+.tb-auth-panel-header{display:flex;gap:14px;align-items:center;padding-bottom:22px;border-bottom:1px solid #2a303a;margin-bottom:23px}
+.tb-auth-panel-symbol{display:grid;place-items:center;flex:none;width:41px;height:41px;border-radius:9px;background:#1463ff18;color:#79a5ff}
+.tb-auth-panel-symbol svg{width:23px;height:23px}
+.tb-auth-panel-header h2{font-size:16px;font-weight:760;letter-spacing:-.3px;margin:0 0 5px;color:#f0f3f8}
+.tb-auth-panel-header p{font-size:11px;margin:0;color:#89919e}
+.tb-auth-form{display:flex;flex-direction:column;gap:20px}
+.tb-auth-field{display:flex;flex-direction:column;gap:9px}
+.tb-auth-field>span{color:#a1abb9;font-size:10px;font-weight:730;letter-spacing:.9px}
+.tb-auth-field input{width:100%;height:46px;padding:0 14px;background:#11151b;border:1px solid #303947;border-radius:6px;color:#e9edf3;font-size:14px;outline:none}
+.tb-auth-field input:focus{border-color:#1463ff;box-shadow:0 0 0 3px #1463ff22}
+.tb-auth-field input::placeholder{color:#647082}
+.tb-auth-submit{height:46px;margin-top:3px;display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;background:#1463ff;color:#fff;border:1px solid #1463ff;border-radius:6px;padding:0 15px;font-weight:740;font-size:13px;cursor:pointer}
+.tb-auth-submit:disabled{opacity:.5;cursor:wait}
+.tb-auth-submit svg{width:19px;height:19px}
+.tb-auth-help{color:#9cabbc;font-size:12px;line-height:1.6}
+.tb-auth-error{border:1px solid #ff47614a;background:#ff476112;color:#ff7688;padding:10px 12px;border-radius:5px;font-size:12px;overflow-wrap:anywhere}
+.tb-auth-back{background:transparent;border:0;color:#96b6ff;text-decoration:underline;font-size:12px;cursor:pointer}
+.tb-auth-message{color:#b6c0cd;font-size:13px}
+.tb-auth-message button{background:transparent;border:0;color:#81abff;text-decoration:underline;cursor:pointer}
+.tb-auth-security{display:flex;align-items:center;justify-content:center;gap:8px;color:#8793a2;font-size:10px}
+.tb-auth-security svg{width:15px;height:15px;color:#0bba74}
+.tb-auth-footer{font-size:9px;font-weight:700;letter-spacing:1.1px;color:#6c7888;border-top:1px solid #292e37}
+@media(max-width:640px){.tb-auth-topbar,.tb-auth-footer{padding:20px}.tb-auth-top-status{display:none}.tb-auth-center{padding:40px 16px}.tb-auth-panel{padding:22px}.tb-auth-hero h1{font-size:31px}}
