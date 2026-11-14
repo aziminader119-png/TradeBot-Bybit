@@ -67,22 +67,19 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
  };
  const field=(name:string,v:React.ReactNode)=><div className="ft-stat"><small>{name}</small><strong>{v}</strong></div>;
  return <div className="ft-workspace" data-testid="futures-workspace">
-  <div className="ft-market-header"><div className="ft-symbol"><h2>{symbol}</h2><span>USDT Perpetual · {lev?lev+'x max':'—'}</span></div><div className={'ft-last '+priceTone}>{price(last)}</div>
+  <div className="ft-market-header"><div className="ft-symbol"><h2>{symbol}</h2><span>USDT Perpetual · {lev?lev+'x max':'—'}</span></div>
+   <div className="ft-header-orders" role="group" aria-label="Market orders">
+    <button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button>
+    <button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SELL</button>
+    <button type="button" className="both" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Both')}>BUY + SELL</button>
+   </div><div className={'ft-last '+priceTone}>{price(last)}</div>
    {field('Mark Price',price(ticker?.markPrice))}{field('Index Price',price(ticker?.indexPrice))}{field('24H Change',ticker?.price24hPcnt!==undefined?signedPct(ticker.price24hPcnt*100):'—')}
    {field('24H High',price(ticker?.highPrice24h))}{field('24H Low',price(ticker?.lowPrice24h))}{field('24H Turnover',num(ticker?.turnover24h,2))}
    {field('Funding / Countdown',<>{ticker?.fundingRate!==undefined?num(ticker.fundingRate*100,4)+'%':'—'} / {fundingClock}</>)}
   </div>
 
   <div className="ft-terminal-grid">
-   <section className="ft-chart-shell"><div className="ft-protection-controls" aria-label="Chart TP and SL editor">{protections.data?.positions?.filter(p=>p.size>0).flatMap(p=>[<button type="button" key={p.side+'-tp'} onClick={()=>openProtection(p,'takeProfit')} title={'Confirm a new TP for '+p.side}>{p.side} TP {p.takeProfit?price(p.takeProfit):'Set'}</button>,<button type="button" key={p.side+'-sl'} onClick={()=>openProtection(p,'stopLoss')} title={'Confirm a new SL for '+p.side}>{p.side} SL {p.stopLoss?price(p.stopLoss):'Set'}</button>])}</div>{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays} onProtectionDrag={handleChartProtectionDrag}/></Suspense></section>
-   <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)}/>
-    <div className="ft-order-calc"><span>Maximum leverage <b>{lev?lev+'x':'—'}</b></span><span>Est. initial margin <b>{initial!==null?num(initial,4)+' USDT':'—'}</b></span><span>Free margin <b>{state?.wallet?.valuesAvailable?num(state.wallet.availableBalance,4)+' USDT':'—'}</b></span></div>
-    <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button><button type="button" className="both" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Both')}>BUY + SELL</button></div>
-    
-    {!real&&<p className="ft-muted">Preview is read-only. Real execution requires the bot's existing Real / START controls.</p>}
-    <div className="ft-wallet">{field('Wallet Balance',state?.wallet?.valuesAvailable?num(usdt,4):'—')}{field('Total Equity',state?.wallet?.valuesAvailable?num(state.wallet.totalEquity,4):'—')}{field('Used Margin',state?.wallet?.valuesAvailable?num(state.wallet.usedMargin,4):'—')}{field('Unrealized P&L',state?.wallet?.valuesAvailable?<span className={state.wallet.unrealizedPnl<0?'red':state.wallet.unrealizedPnl>0?'green':''}>{num(state.wallet.unrealizedPnl,4)}</span>:'—')}</div>
-    <fieldset className="ft-symbol-overview"><legend dir="ltr">Symbol Overview</legend><div ref={setSummaryTarget}/></fieldset>
-   </section>
+   <section className="ft-chart-shell">{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays} onProtectionDrag={handleChartProtectionDrag}/></Suspense></section>
    <aside className="ft-book-column"><section className={'ft-orderbook ft-book-'+bookMode}><h3>Order Book <small className={book.connected&&book.synchronized&&!stale?'green':'red'} title={book.error||'Futures WebSocket'}>{!book.connected?'Disconnected':stale?'Stale':!book.synchronized?'Synchronizing':'Live'}</small></h3>
     <div className="ft-book-modes" role="group" aria-label="Order book layout">{([['stacked','BUY / SELL'],['split','BUY | SELL'],['buy','BUY'],['sell','SELL']] as const).map(([mode,label])=><button type="button" key={mode} className={bookMode===mode?'selected':''} aria-label={label} title={label} aria-pressed={bookMode===mode} onClick={()=>setBookMode(mode)}><svg viewBox="0 0 22 18" width="20" height="16" aria-hidden="true">{mode==='split'?<><path stroke="#0bba74" strokeWidth="3" d="M3 3h5M3 8h5M3 13h5"/><path stroke="#ff4761" strokeWidth="3" d="M13 3h5M13 8h5M13 13h5"/></>:<><path stroke={mode==='sell'?'#ff4761':mode==='buy'?'#0bba74':'#ff4761'} strokeWidth="3" d="M2 3h7M2 8h7"/><path stroke={mode==='sell'?'#ff4761':'#0bba74'} strokeWidth="3" d="M2 13h7"/><path stroke="#929AAA" strokeWidth="2" d="M12 3h8M12 8h8M12 13h8"/></>}</svg></button>)}</div>
      {bookMode!=='stacked'&&<div className="ft-book-mid"><strong className={priceTone}>{price(last)}</strong><small>Spread {spread===null?'—':price(spread)}</small></div>}
@@ -97,6 +94,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
    </section></aside>
   </div>
   <LightPositionLists key={symbol} view="all" summaryTarget={summaryTarget} fixedSymbol={symbol} state={state} onGoCycles={onGoCycles}/>
+  <section className="ft-symbol-overview ft-overview-below" aria-label="Symbol Overview"><h3>Symbol Overview</h3><div ref={setSummaryTarget}/></section>
   <SymbolStatistics key={symbol} symbol={symbol} state={state}/>
   <LightModal open={Boolean(protectionEdit)} title={protectionEdit?'Confirm '+(protectionEdit.field==='takeProfit'?'Take Profit':'Stop Loss')+' change':''} busy={protectionBusy} onClose={()=>{if(!protectionBusy)setProtectionEdit(null)}} onConfirm={()=>void confirmProtection()} confirmLabel="Confirm TP/SL" error={protectionError} testid="protection-confirmation">
    {protectionEdit&&<div className="ft-protection-review">
