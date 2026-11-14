@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState,lazy,Suspense} from 'react';
 import type {BotStateSummary} from '../../types/trading.ts';
 import {positionLines,ExchangeChartPosition} from '../futures/positionLines.ts';
 import {SymbolStatistics} from '../futures/SymbolStatistics.tsx';
-const FuturesChart=lazy(()=>import('../futures/FuturesChart.tsx'));
+const OpenAlgoFutures=lazy(()=>import('../futures/OpenAlgoFutures.tsx'));
 import {useFuturesBook} from '../futures/futuresStream.ts';
 import {LightPositionLists} from './LightPositionLists.tsx';
 import {ManualOrderDialog} from './ManualOrderDialog.tsx';
@@ -41,7 +41,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
   </div>
 
   <div className="ft-terminal-grid">
-   <section className="ft-chart-shell">{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><FuturesChart pair={{symbol}} frame="futures" livePrice={last||null} book={book} positionLines={overlays}/></Suspense></section>
+   <section className="ft-chart-shell">{chartError&&<div className="ft-chart-error" role="alert">{chartError}</div>}{protections.error&&<span className="ft-protection-warning" title={protections.error}>Exchange TP / SL unavailable</span>}<Suspense fallback={<div className="ft-muted" role="status">Loading chart…</div>}><OpenAlgoFutures symbol={symbol} positionLines={overlays}/></Suspense></section>
    <section className="ft-order-panel"><h3>Futures Market Order</h3><label htmlFor="ft-value">Position Value (USDT)</label><input id="ft-value" type="number" min="0.000001" step="any" value={value} onChange={e=>setValue(e.target.value)}/>
     <div className="ft-order-calc"><span>Maximum leverage <b>{lev?lev+'x':'—'}</b></span><span>Est. initial margin <b>{initial!==null?num(initial,4)+' USDT':'—'}</b></span><span>Free margin <b>{state?.wallet?.valuesAvailable?num(state.wallet.availableBalance,4)+' USDT':'—'}</b></span></div>
     <div className="ft-trade-buttons"><button type="button" className="buy" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Buy')}>BUY</button><button type="button" className="short" disabled={!connected||!book.connected||!book.synchronized||stale} onClick={()=>setOrderSide('Sell')}>SHORT</button></div>
@@ -51,7 +51,7 @@ export const LightSymbolWorkspace:React.FC<{state:BotStateSummary|null;symbol:st
     <fieldset className="ft-symbol-overview"><legend dir="ltr">Symbol Overview</legend><div ref={setSummaryTarget}/></fieldset>
    </section>
    <aside className="ft-book-column"><section className={'ft-orderbook ft-book-'+bookMode}><h3>Order Book <small className={book.connected&&book.synchronized&&!stale?'green':'red'} title={book.error||'Futures WebSocket'}>{!book.connected?'Disconnected':stale?'Stale':!book.synchronized?'Synchronizing':'Live'}</small></h3>
-    <div className="ft-book-modes" role="group" aria-label="Order book layout">{([['stacked','BUY / SELL'],['split','BUY | SELL'],['buy','BUY'],['sell','SELL']] as const).map(([mode,label])=><button type="button" key={mode} className={bookMode===mode?'selected':''} aria-label={label} title={label} aria-pressed={bookMode===mode} onClick={()=>setBookMode(mode)}><svg viewBox="0 0 22 18" width="20" height="16" aria-hidden="true">{mode==='split'?<><path stroke="#39AA77" strokeWidth="3" d="M3 3h5M3 8h5M3 13h5"/><path stroke="#ED4F5D" strokeWidth="3" d="M13 3h5M13 8h5M13 13h5"/></>:<><path stroke={mode==='sell'?'#ED4F5D':mode==='buy'?'#39AA77':'#ED4F5D'} strokeWidth="3" d="M2 3h7M2 8h7"/><path stroke={mode==='sell'?'#ED4F5D':'#39AA77'} strokeWidth="3" d="M2 13h7"/><path stroke="#929AAA" strokeWidth="2" d="M12 3h8M12 8h8M12 13h8"/></>}</svg></button>)}</div>
+    <div className="ft-book-modes" role="group" aria-label="Order book layout">{([['stacked','BUY / SELL'],['split','BUY | SELL'],['buy','BUY'],['sell','SELL']] as const).map(([mode,label])=><button type="button" key={mode} className={bookMode===mode?'selected':''} aria-label={label} title={label} aria-pressed={bookMode===mode} onClick={()=>setBookMode(mode)}><svg viewBox="0 0 22 18" width="20" height="16" aria-hidden="true">{mode==='split'?<><path stroke="#0bba74" strokeWidth="3" d="M3 3h5M3 8h5M3 13h5"/><path stroke="#ff4761" strokeWidth="3" d="M13 3h5M13 8h5M13 13h5"/></>:<><path stroke={mode==='sell'?'#ff4761':mode==='buy'?'#0bba74':'#ff4761'} strokeWidth="3" d="M2 3h7M2 8h7"/><path stroke={mode==='sell'?'#ff4761':'#0bba74'} strokeWidth="3" d="M2 13h7"/><path stroke="#929AAA" strokeWidth="2" d="M12 3h8M12 8h8M12 13h8"/></>}</svg></button>)}</div>
      {bookMode!=='stacked'&&<div className="ft-book-mid"><strong className={priceTone}>{price(last)}</strong><small>Spread {spread===null?'—':price(spread)}</small></div>}
     {!book.synchronized?<div className="ft-book-empty">{book.error||'Waiting for a fresh Futures snapshot…'}</div>:<>
      <div className="ft-book-sides">

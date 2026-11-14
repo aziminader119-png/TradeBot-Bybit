@@ -12,9 +12,9 @@ import type { AccountInfo } from './LightSecurity.tsx';
 // Dashboard content of the approved light design. Saves go to the server (/api/hedge/settings, /api/settings);
 // nothing is stored only in the browser. Boxes without a backend in this version are shown disabled.
 
-const LONG = '#39AA77', SHORT = '#ED4F5D'; // position-side colours (BUY / SHORT)
-const boxStyle: React.CSSProperties = { minWidth: 0, border: '1px solid rgb(48,51,58)', borderRadius: 0, padding: '12px 12px 10px', background: 'rgb(16,16,20)', boxSizing: 'border-box' };
-const legendStyle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: 'rgb(244,246,250)', padding: '0 8px', marginLeft: 2 };
+const LONG = '#0bba74', SHORT = '#ff4761'; // position-side colours (BUY / SHORT)
+const boxStyle: React.CSSProperties = { minWidth: 0, border: '1px solid #292e37', borderRadius: 7, padding: '16px', background: '#161920', boxSizing: 'border-box' };
+const legendStyle: React.CSSProperties = { fontSize: 12, fontWeight: 700, color: '#e9edf3', padding: '0 8px', marginLeft: 2 };
 const labelStyle = (color?: string): React.CSSProperties => ({ display: 'grid', gap: 6, minWidth: 0, fontSize: 11, ...(color ? { color } : {}) });
 const str = (v: any) => (typeof v === 'number' && Number.isFinite(v) ? String(v) : '');
 const fmt = (v: number | null | undefined, d = 2) => (typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
@@ -53,6 +53,7 @@ const Unavailable2: React.FC<{ legend: string; a: string; b: string }> = ({ lege
 
 export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh: () => void }> = ({ state, onRefresh }) => {
   const account = useRead<AccountInfo>('/api/auth/account', 120000);
+  const [dashTab, setDashTab] = useState<'Overview'|'BOT Settings'|'Pump Settings'|'Dump Settings'|'Risk Settings'>('Overview');
   const [toast, showToast] = useToast();
   const [pump, setPump] = useState({ minGrowthPct: '20', lookbackDays: '10', retracementPct: '50', positionNotionalUsdt: '30', maxPositions: '10' });
   const [dump, setDump] = useState({ minDropPct: '50', lookbackDays: '20', recoveryPct: '50', positionNotionalUsdt: '30', maxPositions: '10' });
@@ -270,22 +271,43 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
   const bs = (k: string) => boxState[k] || {};
   return (
     <div className="content" data-testid="terminal-dashboard">
-      <section className="section" aria-label="Bybit and bot overview" data-testid="bot-status"><div className="legend">Positions Overview</div>
-        <div className="metrics">
-          <div className="metric"><div className="name">Bybit Open Positions</div><div className="val">{pos ? pos.length : '—'}</div></div>
-          <div className="metric"><div className="name">Long Positions</div><div className="val">{pos ? pos.filter((p) => p.side === 'Buy').length : '—'}</div></div>
-          <div className="metric"><div className="name">Short Positions</div><div className="val">{pos ? pos.filter((p) => p.side === 'Sell').length : '—'}</div></div>
-          <div className="metric"><div className="name">Unrealized PnL (USDT)</div><div className={`val${upnl === null ? '' : upnl < 0 ? ' red' : upnl > 0 ? ' green' : ''}`}>{upnl === null ? '—' : `${upnl > 0 ? '+' : ''}${fmt(upnl, 4)}`}</div></div>
-          <div className="metric"><div className="name">Open Symbols</div><div className="val">{bySym ? Object.keys(bySym).length : '—'}</div></div>
-          <div className="metric"><div className="name">BOT Managed Symbols</div><div className="val" data-testid="m-managed">{cycles.length}</div></div>
-          <div className="metric"><div className="name">BOT Positions</div><div className="val">{bot ? bot.length : '—'}</div></div>
-          <div className="metric"><div className="name">Symbols with Both Sides</div><div className="val">{bySym ? Object.values(bySym).filter((x) => x.size === 2).length : '—'}</div></div>
-          <div className="metric"><div className="name">Waiting Reopen</div><div className="val">{sides.filter((x) => x.s.phase === 'WAIT_TRIGGER').length}</div></div>
-          <div className="metric"><div className="name">Opening</div><div className="val">{sides.filter((x) => x.s.phase === 'OPENING').length}</div></div>
-          <div className="metric"><div className="name">Blocked / Review</div><div className={`val${cycles.some((c) => c.status === 'INCOMPLETE' || c.status === 'NEEDS_REVIEW') ? ' red' : ''}`}>{cycles.filter((c) => c.status === 'INCOMPLETE' || c.status === 'NEEDS_REVIEW').length}</div></div>
-          <div className="metric"><div className="name">TP Pending</div><div className={`val${tpPending ? ' orange' : ''}`}>{tpPending}</div></div>
+      <div className="tb-v19-dash-tabs" role="tablist" aria-label="Dashboard views">
+        {(['Overview','BOT Settings','Pump Settings','Dump Settings','Risk Settings'] as const).map(t =>
+          <button key={t} type="button" role="tab" aria-selected={dashTab===t}
+            className={dashTab===t?'active':''} onClick={()=>setDashTab(t)}>{t}</button>)}
+      </div>
+      {dashTab==='Overview' && <div className="tb-v19-dashboard-overview" data-testid="bot-status">
+        <div className="tb-v19-dash-status-row">
+          <div className="tb-v19-dash-card"><small>BOT STATUS</small><strong className={state?.systemMetrics?.tradingState==='RUNNING'?'green':'orange'}>{state?.systemMetrics?.tradingState||'UNKNOWN'}</strong><span>Live engine state</span></div>
+          <div className="tb-v19-dash-card"><small>BYBIT API</small><strong className={apiState==='ok'?'green':'orange'}>{apiState==='ok'?'CONNECTED':apiState==='checking'?'CHECKING':apiState==='error'?'ERROR':'DISCONNECTED'}</strong><span>Authenticated connection</span></div>
+          <div className="tb-v19-dash-card"><small>OPEN POSITIONS</small><strong>{pos ? pos.length:'—'}</strong><span>From exchange sync</span></div>
+          <div className="tb-v19-dash-card"><small>PUMP SHORT</small><strong className={pumpExecution?.armed?'green':''}>{pumpExecution?.armed?'ARMED':'DISARMED'}</strong><span>Mode: {pumpExecution?.mode||'—'}</span></div>
+          <div className="tb-v19-dash-card"><small>DUMP BUY</small><strong className={dumpExecution?.armed?'green':''}>{dumpExecution?.armed?'ARMED':'DISARMED'}</strong><span>Mode: {dumpExecution?.mode||'—'}</span></div>
+          <div className="tb-v19-dash-card"><small>MANAGED CYCLES</small><strong>{cycles.length}</strong><span>Open BOT cycles</span></div>
         </div>
-      </section>
+        <div className="tb-v19-dash-main-grid">
+          <section className="tb-v19-dash-panel">
+            <div className="tb-v19-dash-panel-head"><h2>Positions Overview</h2><button type="button" onClick={()=>navigate('/AllPositions')}>View All Positions ↗</button></div>
+            <div className="tb-v19-dash-kpi-grid">
+              <div><small>Long Positions</small><strong className="green">{pos ? pos.filter(p=>p.side==='Buy').length:'—'}</strong></div>
+              <div><small>Short Positions</small><strong className="red">{pos ? pos.filter(p=>p.side==='Sell').length:'—'}</strong></div>
+              <div><small>Unrealized P&L</small><strong className={upnl===null?'':upnl>=0?'green':'red'}>{upnl===null?'—':`${upnl>=0?'+':''}${fmt(upnl,2)} USDT`}</strong></div>
+              <div><small>Open Symbols</small><strong>{bySym ? Object.keys(bySym).length:'—'}</strong></div>
+              <div><small>BOT Positions</small><strong>{bot ? bot.length:'—'}</strong></div>
+              <div><small>Both Sides Open</small><strong>{bySym ? Object.values(bySym).filter(x=>x.size===2).length:'—'}</strong></div>
+            </div>
+          </section>
+          <section className="tb-v19-dash-panel">
+            <div className="tb-v19-dash-panel-head"><h2>Strategy Health</h2><button type="button" onClick={()=>navigate('/BotCycles')}>BOT Cycles ↗</button></div>
+            <div className="tb-v19-dash-health-row"><span>Waiting Reopen</span><strong>{sides.filter(x=>x.s.phase==='WAIT_TRIGGER').length}</strong></div>
+            <div className="tb-v19-dash-health-row"><span>Opening</span><strong>{sides.filter(x=>x.s.phase==='OPENING').length}</strong></div>
+            <div className="tb-v19-dash-health-row"><span>Blocked / Review</span><strong className="red">{cycles.filter(c=>c.status==='INCOMPLETE'||c.status==='NEEDS_REVIEW').length}</strong></div>
+            <div className="tb-v19-dash-health-row"><span>TP Pending</span><strong className="orange">{tpPending}</strong></div>
+            <div className="tb-v19-dash-quick"><button type="button" onClick={()=>setDashTab('BOT Settings')}>BOT Settings</button><button type="button" onClick={()=>setDashTab('Pump Settings')}>Pump Settings</button><button type="button" onClick={()=>setDashTab('Dump Settings')}>Dump Settings</button></div>
+          </section>
+        </div>
+      </div>}
+      {dashTab==='Pump Settings' && <>
       <Box legend="Pump Short — New Strategy" testid="pump-short-settings" onSave={savePump} saving={pumpSaving} status={pumpStatus} error={pumpError} inlineSave>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(155px,1fr))', gap: 8 }}>
           <label style={labelStyle()}>Growth threshold (%)<input aria-label="Pump growth percent" type="number" min="0.1" step="0.1" value={pump.minGrowthPct} onChange={e => setPump(p => ({ ...p, minGrowthPct: e.target.value }))} /></label>
@@ -306,6 +328,8 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         </div>
         {pumpArmError && <p role="alert" className="field-error">{pumpArmError}</p>}
       </Box>
+      </>}
+      {dashTab==='Dump Settings' && <>
       <Box legend="Dump Buy — Automatic BUY" testid="dump-buy-settings" onSave={saveDump} saving={dumpSaving} status={dumpStatus} error={dumpError} inlineSave>
         <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(155px,1fr))',gap:8 }}>
           <label style={labelStyle()}>Minimum drop (%)<input aria-label="Dump minimum drop percent" type="number" min="0.1" max="99.9" step="0.1" value={dump.minDropPct} onChange={e=>setDump(d=>({...d,minDropPct:e.target.value}))}/></label>
@@ -322,6 +346,8 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
           <button className="save" type="button" disabled={dumpSaving} onClick={()=>void saveDump()}>{dumpSaving?'Saving…':'Save'}</button>
         </div>
       </Box>
+      </>}
+      {dashTab==='BOT Settings' && <>
       {hedgeLoading&&<p role="status">Loading strategy settings…</p>}
       {hedgeLoadError&&<p className="lp-error" role="alert">{hedgeLoadError} <button type="button" onClick={()=>void loadHedge()}>Retry</button></p>}
 
@@ -343,6 +369,8 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         <Box legend="MART (%)" unavailable><PairInputs name="MART Loss" long="" short="" disabled /></Box>
         <Box legend="Freeze (%)" unavailable><PairInputs name="Freeze" long="" short="" disabled /></Box>
       </div>
+      </>}
+      {dashTab==='Risk Settings' && <>
       <div id="threshold-settings" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,280px),1fr))', gap: 12, alignItems: 'stretch', marginBottom: 20 }}>
         <Box legend="Risk Thresholds" onSave={savedRisk ? saveRisk : undefined} {...bs('risk')} error={bs('risk').error ?? (state && !savedRisk ? 'Needs the updated bot server (restart the bot on the new version).' : null)} testid="box-risk">
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0px,1fr))', gap: 8 }}>
@@ -358,6 +386,9 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         </Box>
       </div>
 
+      </>}
+      {dashTab==='BOT Settings' && <>
+      <div className="tb-v19-dash-admin">
       <section className="section" id="dashboard-settings" data-testid="dashboard-security-card"><div className="legend">User &amp; Security</div>
         <div className="account-actions"><span className="account-status">Username, password and Google Authenticator 2FA{account.data ? <span style={{ color: 'rgb(173,177,184)' }}> · 2FA {account.data.twoFactor.enabled ? 'enabled' : 'off'}{account.data.username ? ' · user ' + account.data.username : ''}</span> : null}</span><a className="report-button" href="/Security" onClick={(e) => linkClick(e, '/Security')} data-testid="dashboard-security-link">Open Security</a></div>
       </section>
@@ -374,7 +405,9 @@ export const LightDashboard: React.FC<{ state: BotStateSummary | null; onRefresh
         )}
       </section>
 
+      </div>
       <TradeAlertSettings/>
+      </>}
       <LightModal open={tpConfirm !== null} title="Apply new take profit to existing cycles" confirmLabel="Apply" busy={bs('tp').saving} onClose={() => setTpConfirm(null)} onConfirm={confirmTp} testid="tp-confirm">
         These running sides are already at or beyond the new TP. After you apply it, a managed side closes at its TP on the next price tick and reopens as usual; a side of a paused cycle only closes when the bot is started. Nothing else is closed or opened by this change.
         <table data-testid="tp-affected">

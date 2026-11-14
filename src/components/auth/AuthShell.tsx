@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { setCsrfToken } from '../../security/apiClient.ts';
+import './auth-v19.css';
 
 type Status = 'loading' | 'login' | 'setup' | 'twofactor' | 'ready' | 'error';
 
@@ -82,50 +83,63 @@ export const AuthShell: React.FC<{ children: React.ReactNode }> = ({ children })
     );
   }
 
-  const box: React.CSSProperties = { width: '100%', maxWidth: 380, background: '#131317', border: '1px solid #28282e', borderRadius: 6, padding: 24 };
-  const input: React.CSSProperties = { width: '100%', background: '#101014', border: '1px solid #2c2c3a', color: '#fafafa', padding: '9px 12px', borderRadius: 3, fontSize: 16, marginTop: 6, boxSizing: 'border-box' };
   return (
-    <div style={{ minHeight: '100vh', background: '#101014', color: '#fafafa', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      {status === 'loading' && <div>Checking session…</div>}
-      {status === 'error' && <div>Cannot reach the TradeBot server.</div>}
-      {(status === 'login' || status === 'setup' || status === 'twofactor') && (
-        <form onSubmit={submit} style={box}>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>TradeBot Pro</div>
-          <div style={{ fontSize: 12, color: '#8d9098', marginBottom: 16 }}>
-            {status === 'setup'
-              ? 'First run: enter the one-time setup token shown in the server console, then choose an admin password (10+ characters).'
-              : status === 'twofactor' ? 'Enter the 6-digit code from your authenticator app, or one of your recovery codes.'
-              : 'Sign in with the admin account.'}
+    <main className="tb-auth-v19">
+      <div className="tb-auth-glow tb-auth-glow-left" aria-hidden="true" />
+      <div className="tb-auth-glow tb-auth-glow-right" aria-hidden="true" />
+      <header className="tb-auth-topbar">
+        <div className="tb-auth-wordmark"><span className="tb-auth-brand-icon">T</span><strong>TRADEBOT <em>PRO</em></strong></div>
+        <div className="tb-auth-top-status"><span className="tb-auth-status-dot" /> SECURE TRADING TERMINAL</div>
+      </header>
+      <div className="tb-auth-center">
+        <div className="tb-auth-hero">
+          <div className="tb-auth-eyebrow"><span className="tb-auth-eyebrow-line" /> BYBIT FUTURES MANAGEMENT</div>
+          <h1>Welcome back<span>.</span></h1>
+          <p>Access your private trading workspace.</p>
+        </div>
+        <section className="tb-auth-panel" aria-label="TradeBot Pro access">
+          <div className="tb-auth-panel-header">
+            <div className="tb-auth-panel-symbol" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5.5" y="10" width="13" height="10" rx="2"/>
+                <path d="M8.5 10V7a3.5 3.5 0 0 1 7 0v3"/>
+                <circle cx="12" cy="15" r="1"/>
+              </svg>
+            </div>
+            <div><h2>{status === 'setup' ? 'Initialize terminal' : status === 'twofactor' ? 'Security verification' : 'Sign in to your account'}</h2>
+            <p>{status === 'setup' ? 'Create your administrator credentials' : status === 'twofactor' ? 'Complete your second authentication step' : 'Enter your credentials to continue'}</p></div>
           </div>
-          {status === 'twofactor' && (
-            <label style={{ fontSize: 12, display: 'block' }}>
-              Authentication code
-              <input value={code} onChange={(e) => setCode(e.target.value)} autoComplete="one-time-code" inputMode="text" autoFocus style={input} data-testid="login-2fa-code" />
-            </label>
-          )}
-          {status === 'login' && usernameRequired && (
-            <label style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-              Username
-              <input value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" style={input} />
-            </label>
-          )}
-          {status === 'setup' && (
-            <label style={{ fontSize: 12, display: 'block', marginBottom: 12 }}>
-              Setup token
-              <input value={setupToken} onChange={(e) => setSetupToken(e.target.value)} autoComplete="off" style={input} />
-            </label>
-          )}
-          {status !== 'twofactor' && <label style={{ fontSize: 12, display: 'block' }}>
-            {status === 'setup' ? 'New admin password' : 'Password'}
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={status === 'setup' ? 'new-password' : 'current-password'} style={input} />
-          </label>}
-          {error && <div style={{ color: '#ed4f5d', fontSize: 12, marginTop: 10 }}>{error}</div>}
-          <button type="submit" disabled={busy} style={{ marginTop: 16, width: '100%', background: '#dda052', color: '#101014', border: 0, padding: '10px 0', fontWeight: 700, borderRadius: 3, cursor: 'pointer' }}>
-            {busy ? 'Please wait…' : status === 'setup' ? 'Set password' : status === 'twofactor' ? 'Verify' : 'Sign in'}
-          </button>
-        </form>
-      )}
-    </div>
+          {status === 'loading' && <div className="tb-auth-message" role="status">Checking secure session…</div>}
+          {status === 'error' && <div className="tb-auth-message" role="alert">Connection unavailable. <button type="button" onClick={() => void check()}>Retry</button></div>}
+          {(status === 'login' || status === 'setup' || status === 'twofactor') && <form className="tb-auth-form" onSubmit={submit}>
+            {status === 'setup' && <div className="tb-auth-help">Enter the one-time setup token from your server and create an admin password with at least 10 characters.</div>}
+            {status === 'twofactor' && <div className="tb-auth-help">Use a code from your authenticator app, or a recovery code.</div>}
+            {status === 'login' && usernameRequired && <label className="tb-auth-field">
+              <span>USERNAME</span>
+              <input type="text" required autoComplete="username" placeholder="Admin username" value={username} onChange={e => setUsername(e.target.value)} />
+            </label>}
+            {status === 'setup' && <label className="tb-auth-field">
+              <span>SETUP TOKEN</span>
+              <input required autoComplete="off" placeholder="One-time setup token" value={setupToken} onChange={e => setSetupToken(e.target.value)} />
+            </label>}
+            {status === 'twofactor' ? <label className="tb-auth-field">
+              <span>AUTHENTICATION CODE</span>
+              <input required autoComplete="one-time-code" inputMode="text" autoFocus placeholder="6-digit code or recovery code" value={code} onChange={e => setCode(e.target.value)} data-testid="login-2fa-code" />
+            </label> : <label className="tb-auth-field">
+              <span>{status === 'setup' ? 'NEW ADMIN PASSWORD' : 'PASSWORD'}</span>
+              <input required type="password" minLength={status === 'setup' ? 10 : undefined} autoComplete={status === 'setup' ? 'new-password' : 'current-password'} placeholder={status === 'setup' ? 'Create a strong password' : 'Enter your password'} value={password} onChange={e => setPassword(e.target.value)} />
+            </label>}
+            {error && <div className="tb-auth-error" role="alert">{error}</div>}
+            <button type="submit" className="tb-auth-submit" disabled={busy}>
+              <span>{busy ? 'Please wait…' : status === 'setup' ? 'Create administrator account' : status === 'twofactor' ? 'Verify and continue' : 'Sign in to terminal'}</span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+            </button>
+            {status === 'twofactor' && <button type="button" className="tb-auth-back" onClick={() => { setStatus('login'); setChallenge(null); setCode(''); setError(''); }}>Back to sign in</button>}
+          </form>}
+        </section>
+        <div className="tb-auth-security"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m12 3 8 4v5c0 5-3.5 7.7-8 9-4.5-1.3-8-4-8-9V7l8-4Z"/><path d="m9 12 2 2 4-4"/></svg><span>Protected session · Two-factor authentication supported</span></div>
+      </div>
+      <footer className="tb-auth-footer"><span>TRADEBOT PRO</span><span>PRIVATE TRADING WORKSPACE</span></footer>
+    </main>
   );
 };
-

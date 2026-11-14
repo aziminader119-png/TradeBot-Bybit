@@ -57,3 +57,77 @@ export function PositionOwnershipActions({ id, symbol, side, owner, pump, refres
     {error && <small role="alert" className="red" title={error} style={{ flexBasis: '100%' }}>{error}</small>}
   </div>;
 }
+
+/** V19 Market Close modal. The current backend closes an ENTIRE position only.
+ * Partial amounts are previewed but never submitted to the full-close endpoint. */
+export function PositionCloseButton({id,symbol,side,quantity,unrealizedPnl}:{
+  id:string;symbol:string;side:string;quantity:number;unrealizedPnl?:number|null
+}) {
+  const [open,setOpen]=useState(false);
+  const [percentage,setPercentage]=useState(100);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const maxQty=Number.isFinite(quantity)&&quantity>0?quantity:0;
+  const full=percentage===100;
+  const qty=maxQty*percentage/100;
+  const qtyText=(n:number)=>Number(n.toPrecision(10)).toLocaleString('en-US',{maximumFractionDigits:10});
+  const baseSymbol=symbol.endsWith('USDT')?symbol.slice(0,-4):symbol;
+  const estimate=typeof unrealizedPnl==='number'&&Number.isFinite(unrealizedPnl)?unrealizedPnl*percentage/100:null;
+  const estimateText=estimate===null?'—':(estimate>=0?'+':'−')+Math.abs(estimate).toFixed(4)+' USDT';
+  useEffect(()=>{
+    if(!open)return;
+    const onKey=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!busy)setOpen(false)};
+    window.addEventListener('keydown',onKey);
+    return()=>window.removeEventListener('keydown',onKey);
+  },[open,busy]);
+  const close=async()=>{
+    // This endpoint always closes 100%; do not send a partial selection by mistake.
+    if(!full||busy||maxQty<=0)return;
+    setBusy(true);setError('');
+    try{
+      const r=await postJson('/api/positions/'+encodeURIComponent(id)+'/close',{confirm:true});
+      if(!r.ok||r.data?.success===false)throw Error(r.data?.error||r.data?.message||'Position close was rejected');
+      setOpen(false);
+    }catch(e:any){setError(e.message||'Close failed. Verify the exchange position before retrying.')}
+    finally{setBusy(false)}
+  };
+  return <>
+    <button type="button" className="tb-v19-close-btn" onClick={()=>{setError('');setPercentage(100);setOpen(true)}} aria-label={`Close ${symbol} ${side} position`}>Close</button>
+    {open&&<div className="tb-v19-close-backdrop" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget&&!busy)setOpen(false)}}>
+      <section className="tb-v19-close-dialog" role="dialog" aria-modal="true" aria-label={`Market close ${symbol} ${side}`}>
+        <div className="tb-v19-close-heading">
+          <h3>Market Close</h3>
+          <button type="button" className="tb-v19-close-x" disabled={busy} onClick={()=>setOpen(false)} aria-label="Dismiss close dialog">×</button>
+        </div>
+        <div className="tb-v19-close-target">
+          <span>SYMBOL <b>{symbol}</b></span><span>SIDE <b className={side==='Buy'?'green':'red'}>{side==='Buy'?'BUY':'SHORT'}</b></span>
+        </div>
+        <label htmlFor={`close-qty-${id}`} className="tb-v19-close-qty-label">Closed Qty {baseSymbol}</label>
+        <div className="tb-v19-close-qty-box">
+          <input id={`close-qty-${id}`} type="text" value={qtyText(qty)} readOnly aria-label="Quantity to close" />
+          <button className="tb-v19-close-qty-btn" type="button" disabled={busy} onClick={()=>setPercentage(v=>Math.max(0,v-25))} aria-label="Reduce close percentage">−</button>
+          <button className="tb-v19-close-qty-btn" type="button" disabled={busy} onClick={()=>setPercentage(v=>Math.min(100,v+25))} aria-label="Increase close percentage">+</button>
+        </div>
+        <div className="tb-v19-close-slider-wrap">
+          <input type="range" min="0" max="100" step="1" value={percentage}
+            disabled={busy} onChange={e=>setPercentage(Number(e.target.value))}
+            aria-label="Percentage of position to close"
+            style={{'--close-pct':percentage+'%'} as React.CSSProperties}/>
+          <div className="tb-v19-close-slider-stops" aria-hidden="true">{[0,25,50,75,100].map(n=><span key={n} style={{left:n+'%'}} className={percentage>=n?'filled':''}/>)}</div>
+          <div className="tb-v19-close-slider-labels"><span>0</span><span>{percentage}%</span></div>
+        </div>
+        <div className="tb-v19-close-estimate">
+          <p>{qtyText(qty)} {baseSymbol} contract(s) selected for a market close.</p>
+          <p>Estimated unrealized P&amp;L: <strong className={estimate!==null&&estimate<0?'red':'green'}>{estimateText}</strong></p>
+          <small>Estimate uses the latest position P&amp;L; fees and slippage are not included.</small>
+        </div>
+        {!full&&<p role="status" className="tb-v19-close-partial-notice">Partial close requires backend support. Select 100% to close this position.</p>}
+        {error&&<p role="alert" className="tb-v19-close-error">{error}</p>}
+        <div className="tb-v19-close-actions">
+          <button type="button" className="confirm" disabled={busy||!full||maxQty<=0} onClick={()=>void close()}>{busy?'Closing…':'Confirm Close'}</button>
+          <button type="button" className="cancel" disabled={busy} onClick={()=>setOpen(false)}>Cancel</button>
+        </div>
+      </section>
+    </div>}
+  </>;
+}

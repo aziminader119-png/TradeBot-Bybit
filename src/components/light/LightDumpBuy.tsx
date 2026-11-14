@@ -49,7 +49,6 @@ export function LightDumpBuy({ state }: { state: BotStateSummary | null }) {
     <section className="section">
       <div className="lp-toolbar">
         <div className="tb-left"><input className="search" aria-label="Search dump symbols" placeholder="Search by Symbol..." value={query} onChange={e=>update(setQuery)(e.target.value)} /></div>
-        <RowsPicker size={size} onSize={update(setSize)} />
         <FilterChoices<Filter> label="Status" className="tb-right" value={filter} onChange={update(setFilter)} options={[{value:'ALL',label:'All Candidates'},{value:'ELIGIBLE',label:'Eligible'},{value:'EXCLUDED',label:'BUY Open'}]}/>
       </div>
       <div className="aged-table-title"><span>Dump Candidates</span></div>
@@ -65,7 +64,7 @@ export function LightDumpBuy({ state }: { state: BotStateSummary | null }) {
           </tr>) : <tr><td className="empty" colSpan={7}>No candidates match the current threshold or filters.</td></tr>}</tbody>
         </table>
       </div>
-      <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage}/>
+      <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={update(setSize)} /></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage}/></div>
     </section>
     {manualBuy && <ManualOrderDialog key={manualBuy} symbol={manualBuy} side="Buy" enabled={state?.systemMetrics?.tradingMode==='REAL'&&state?.systemMetrics?.tradingState==='RUNNING'} onClose={()=>setManualBuy(null)} onDone={()=>void refresh()}/>}
   </div>;

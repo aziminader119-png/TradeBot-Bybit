@@ -176,7 +176,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
 
   return (
     <div className="workspace lp-symbols" data-testid="symbols-page">
-      <section className="lp-panel symbols-overview" data-testid="symbols-overview">
+      <details className="tb-v19-symbols-overview" data-testid="symbols-overview"><summary>Market overview <span>Live symbol &amp; funding statistics</span></summary>
         <div className="section-title">Symbol Overview</div>
         <div className="overview-grid">
           <div className="overview-card"><div className="k">Total Symbols</div><div className="v" data-testid="ov-total">{rows ? `${rows.length} symbols` : '—'}</div></div>
@@ -186,25 +186,23 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
           <div className="overview-card"><div className="k">Not Managed</div><div className="v" data-testid="ov-none">{rows ? overview.NONE : '—'}</div></div>
           <div className="overview-card"><div className="k">Avg Funding</div><div className="v orange" data-testid="ov-funding">{fundingTxt(overview.avgFunding)}</div></div>
         </div>
-      </section>
+      </details>
 
       <section className="lp-panel symbols-panel">
         {error && <div className="lp-error" data-testid="symbols-error" role="alert">Symbol list from Bybit unavailable: {error} <button type="button" onClick={()=>refreshReportRead('/api/symbols')}>Retry</button></div>}
         <div className="lp-toolbar">
           <div className="tb-left"><input className="search" type="search" placeholder="Search by Symbol (e.g. BTC)..." aria-label="Search symbols" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="symbol-search" /></div>
           <FilterChoices<Mode> label="Management" className="management-filter" testId="mgmt-filter" optionAttribute="data-mode" value={mode} options={[{value:'all',label:'All'},{value:'both',label:'Both'},{value:'LONG',label:'BUY'},{value:'SHORT',label:'SHORT'},{value:'none',label:'None'}]} onChange={reset(setMode)}/>
-          <RowsPicker size={size} onSize={reset(setSize)} />
+
           <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-side" value={sideF} options={[{value:'all',label:'All Sides'},{value:'BUY',label:'BUY'},{value:'SELL',label:'SHORT'}]} onChange={reset(setSideF)}/>
         </div>
         {historyBusy && <div role="status" className="ft-muted">Loading historical changes: {historyProgress.done} / {historyProgress.total} symbols…</div>}
         {historyError && <div role="alert" className="lp-error">{historyError} — click the column again to retry.</div>}
-        <div className="aged-table-title"><span>All Symbols</span></div>
         <div className="table-wrap" role="region" tabIndex={0} aria-label="Symbols table">
-          <table className="lp-table symbols-table" data-testid="symbols-table">
-            <colgroup><col style={{ width: '10%' }} /><col style={{ width: '4.5%' }} /><col style={{ width: '8.5%' }} />{Array.from({ length: 9 }, (_, i) => <col key={i} style={{ width: '4.8%' }} />)}<col style={{ width: '8%' }} /><col style={{ width: '9.5%' }} /><col style={{ width: '12.3%' }} /></colgroup>
+          <table className="lp-table symbols-table tb-unified-symbols" data-testid="symbols-table">
+
             <thead><tr>
               <SortTh k="symbol" s={sort} onSort={sortClick}>Symbol</SortTh>
-              <th>Bybit</th>
               <SortTh k="price" s={sort} onSort={sortClick} title="Last traded price from Bybit's ticker">Last Price</SortTh>
               <SortTh k="h1" s={sort} onSort={sortClick} title="From Bybit's ticker (prevPrice1h)">1H %</SortTh>
               {CHANGE_COLS.slice(0, 3).map((t) => <SortTh key={t} k={t} s={sort} onSort={sortClick} title="Bybit candle history, sorted across all symbols">{t} %</SortTh>)}
@@ -215,16 +213,26 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
               <th>Trade</th>
             </tr></thead>
             <tbody>
-              {!rows ? <tr><td colSpan={15} className="empty">{error?'Bybit symbol list unavailable.':'Loading the Bybit symbol list…'}</td></tr>
-                : pg.slice.length === 0 ? <tr><td colSpan={15} className="empty">{rows.length ? 'No matching symbols' : 'No symbols loaded from Bybit'}</td></tr>
+              {!rows ? <tr><td colSpan={14} className="empty">{error?'Bybit symbol list unavailable.':'Loading the Bybit symbol list…'}</td></tr>
+                : pg.slice.length === 0 ? <tr><td colSpan={14} className="empty">{rows.length ? 'No matching symbols' : 'No symbols loaded from Bybit'}</td></tr>
                 : pg.slice.map((r) => {
-                  const busy = Boolean(r.cycle && r.cycle !== 'CLOSED') || r.positions.length > 0;
+                  // A symbol with any existing exchange position can only be traded from Single Coin.
+                  // A live/paused BOT cycle also blocks this list's quick-order controls.
+                  const busy = Boolean(r.cycle && r.cycle !== 'CLOSED') || r.positions.some(p => p.size > 0);
                   const ext = r.positions.filter((p) => p.owner !== 'bot').length;
                   return (
                     <tr key={r.symbol} data-symbol={r.symbol}>
-                      <td className="symbol" title={r.symbol}><SymbolLink symbol={r.symbol} title="Open Futures workspace" className="symbol-link">{r.symbol}</SymbolLink><small className="maxlev">{r.maxLeverage ? `${r.maxLeverage} X` : '—'}</small></td>
-                      <td><a className="bybit-icon" title={`Open ${r.symbol} on Bybit`} target="_blank" rel="noopener noreferrer" href={`https://www.bybit.com/trade/usdt/${r.symbol}`}><ExtIcon /></a></td>
-                      <td data-col="price">{price(r.lastPrice)}</td>
+                      <td className="symbol" title={r.symbol}>
+                         <span className="tb-sym-compact"><span className="tb-sym-label">
+                           <SymbolLink symbol={r.symbol} title="Open Futures workspace" className="symbol-link">{r.symbol}</SymbolLink>
+                           <small className="maxlev">{r.maxLeverage ? `${r.maxLeverage} X` : '—'}</small>
+                         </span>
+                         <a className="bybit-icon" title={`Open ${r.symbol} on Bybit Futures`}
+                           aria-label={`Open ${r.symbol} on Bybit Futures`} target="_blank" rel="noopener noreferrer"
+                           href={`https://www.bybit.com/trade/usdt/${r.symbol}`}><ExtIcon /></a>
+                         </span>
+                       </td>
+                       <td data-col="price">{price(r.lastPrice)}</td>
                       <td className={`change ${tone(r.h1)}`} data-col="h1">{signedPct(r.h1)}</td>
                       {CHANGE_COLS.slice(0, 3).map((t) => <td key={t} className={`change ${tone(chg(r.symbol, t))}`} data-col={'c' + t}>{signedPct(chg(r.symbol, t))}</td>)}
                       <td className={`change ${tone(r.change24hPct)}`} data-col="h24">{signedPct(r.change24hPct)}</td>
@@ -233,10 +241,12 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
                       <td data-col="managed"><ManagedSides m={r.managed} />{ext > 0 && <small className="ext-note" title="Open positions not opened by the bot; never changed">{ext} external</small>}</td>
                       <td className="trade-cell">
                         <div className="symbol-trade-actions">
-                          <button type="button" className={`trade${busy ? ' muted' : ''}`} data-testid={`start-${r.symbol}`} title="Open a bot-managed Buy + Short hedge after confirmation" onClick={() => setDialogSymbol(r.symbol)}>Start Buy + Sell</button>
+                          <button type="button" className={`trade${busy ? ' muted' : ''}`} disabled={busy} data-testid={`start-${r.symbol}`}
+                            title={busy ? 'Existing open position or active BOT cycle — use Single Coin' : 'Open a bot-managed Buy + Short hedge after confirmation'}
+                            onClick={() => { if (!busy) setDialogSymbol(r.symbol); }}>Start Buy + Sell</button>
                           <div className="symbol-trade-singles">
-                            <button type="button" className="trade pos-buy" onClick={() => void openSingle(r.symbol, 'Buy')}>Buy Only</button>
-                            <button type="button" className="trade pos-short" onClick={() => void openSingle(r.symbol, 'Sell')}>Short Only</button>
+                            <button type="button" disabled={busy} className="trade pos-buy" title={busy ? 'Existing open position or active BOT cycle — use Single Coin' : 'Buy Only'} onClick={() => { if (!busy) void openSingle(r.symbol, 'Buy'); }}>Buy Only</button>
+                            <button type="button" disabled={busy} className="trade pos-short" title={busy ? 'Existing open position or active BOT cycle — use Single Coin' : 'Short Only'} onClick={() => { if (!busy) void openSingle(r.symbol, 'Sell'); }}>Short Only</button>
                           </div>
                         </div>
                       </td>
@@ -246,7 +256,7 @@ export const LightSymbols: React.FC<{ state: BotStateSummary | null; onRefresh: 
             </tbody>
           </table>
         </div>
-        <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} />
+        <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={reset(setSize)} /></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} /></div>
       </section>
 
       {dialogSymbol && <HedgeStartDialog symbol={dialogSymbol} pinRequired={pinRequired} onClose={() => setDialogSymbol(null)} onDone={onRefresh} />}

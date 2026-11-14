@@ -8,13 +8,14 @@ import { AGED_DEFAULT_HOURS, inPositionView, savedThresholds, viewThreshold } fr
 import { FilterChoices } from './FilterChoices.tsx';
 import { DateTime, Liq, SymbolSide } from './format.tsx';
 import { syncedPositions } from './LightShell.tsx';
-import { Pager, RowsPicker, SortTh, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
-import { PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
+import { Pager, RowsPicker, SortTh, compactTargetPrice, num, price, sortRows, tone, usePaged, useSort } from './table.tsx';
+import { PositionCloseButton, PositionOwnershipActions, usePumpOwnership } from './PositionOwnership.tsx';
+import {BulkCloseSelected} from './BulkCloseSelected.tsx';
 
 // Read-only lists. No trading or ownership mutations; data comes from the existing synced snapshot.
 type SideF = 'ALL' | 'Buy' | 'Sell';
 type OwnerF = 'ALL' | 'bot' | 'external';
-type K = 'symbol' | 'size' | 'value' | 'entry' | 'mark' | 'liq' | 'upnl' | 'open' | 'age' | 'status' | 'tp' | 'risk';
+type K = 'symbol' | 'size' | 'value' | 'entry' | 'mark' | 'liq' | 'upnl' | 'upnlPct' | 'open' | 'age' | 'status' | 'tp' | 'risk';
 
 const age = (ms: number | null) => {
   if (ms === null || ms < 0) return '—';
@@ -66,6 +67,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
   const [size, setSize] = useState(20);
   const [page, setPage] = useState(1);
   const [sort, toggleSort] = useSort<K>();
+  const [checked,setChecked]=useState<string[]>([]);
   const [now, setNow] = useState(Date.now());
   const pumpOwnership = usePumpOwnership();
   const pumpBySymbol = new Map(pumpOwnership.trades.filter(t => ['OPEN', 'ENTRY_PENDING', 'EXIT_PENDING'].includes(t.status)).map(t => [t.symbol, t]));
@@ -117,6 +119,7 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
         case 'mark': return d.p.markPrice;
         case 'liq': return d.p.liqPrice ?? null;
         case 'upnl': return d.p.unrealizedPnl;
+        case 'upnlPct': return movePct(d.p);
         case 'open': return d.opened;
         case 'age': return d.opened === null ? null : now - d.opened;
         case 'status': return d.st.text;
@@ -125,11 +128,20 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
     });
   }, [data, q, sideF, ownerF, sort, now, view, minHours, maxHours, threshold]);
   const pg = usePaged(filtered, size, page);
+  const livePos=new Map((synced||[]).filter(p=>p.size>0&&!p.missingOnExchangeSince).map(p=>[p.id,p]));
+  const checkedPositions=checked.map(id=>livePos.get(id)).filter((p):p is BotPosition=>Boolean(p));
+  const visibleIds=pg.slice.filter(d=>d.p.size>0&&!d.p.missingOnExchangeSince).map(d=>d.p.id);
+  const selectedOnPage=visibleIds.length>0&&visibleIds.every(id=>checked.includes(id));
+  const toggleAllVisible=(value:boolean)=>setChecked(prev=>value
+    ? [...new Set([...prev,...visibleIds])]
+    : prev.filter(id=>!visibleIds.includes(id)));
+  const toggleRow=(id:string,value:boolean)=>setChecked(prev=>value?[...new Set([...prev,id])]:prev.filter(v=>v!==id));
+
   const reset = <T,>(fn: (v: T) => void) => (v: T) => { fn(v); setPage(1); };
   const v = (x: string | number) => (synced ? x : '—');
 
   const emptyText = !configured ? 'Connect the Bybit API on the Dashboard to see your positions.'
-    : !synced ? `Not synced with Bybit (${conn?.error?.message || conn?.state || 'no connection'}).`
+    : !synced ? 'Not synced with Bybit.'
     : data.length === 0 ? 'No open positions in this category.' : 'No matching positions';
 
   const summary=(
@@ -153,62 +165,73 @@ export const LightPositionLists: React.FC<{ state: BotStateSummary | null; onGoC
       <div className="lp-toolbar">
         <div className="tb-left">
           <input className="search" type="search" placeholder="Search by Symbol..." aria-label="Search by symbol" value={q} onChange={(e) => reset(setQ)(e.target.value)} data-testid="botpos-search" />
+          <BulkCloseSelected positions={checkedPositions} onClosed={ids=>setChecked(prev=>prev.filter(id=>!ids.includes(id)))}/>
+          {checked.length>0&&<button type="button" className="tb-v19-clear-selection" onClick={()=>setChecked([])}>Clear selection</button>}
           {view === 'aged' && <label>Open longer than (days): <input type="number" min="0" step="0.5" value={minHours / 24} style={{ width: 80 }} onChange={(e) => { setMinHours(Math.max(0, Number(e.target.value) || 0) * 24); setMaxHours(null); setPage(1); }} /></label>}
         </div>
-        <RowsPicker size={size} onSize={reset(setSize)} />
-        {view !== 'external' && view !== 'mart' && <FilterChoices<OwnerF> label="Owner" testId="owner-filter" optionAttribute="data-owner" value={ownerF} options={[{value:'ALL',label:'All Owners'},{value:'bot',label:'BOT'},{value:'external',label:'External'}]} onChange={reset(setOwnerF)}/>}
+
+        {view === 'all' && <FilterChoices<OwnerF> label="Owner" testId="owner-filter" optionAttribute="data-owner" value={ownerF} options={[{value:'ALL',label:'All Owners'},{value:'bot',label:'BOT'},{value:'external',label:'External'}]} onChange={reset(setOwnerF)}/>}
         <FilterChoices<SideF> label="Side" className="tb-right" testId="side-filter" optionAttribute="data-filter" value={sideF} options={[{value:'ALL',label:'All Sides'},{value:'Buy',label:'BUY'},{value:'Sell',label:'SHORT'}]} onChange={reset(setSideF)}/>
       </div>
 
-      {!fixedSymbol && <p className={'lp-source-note lp-sync-note' + (synced && sync.stale ? ' orange' : '')} data-testid="positions-synced">{sync.at ? <>Last Bybit position sync: <DateTime ts={sync.at} />{synced && sync.stale ? ` — older than 60 s; ${conn?.error?.message || 'Bybit reconciliation is delayed'}` : ''}</> : 'No successful Bybit position sync yet.'}{view === 'margin' && <> · Margin = Bybit position margin (positionIM) at that sync; marked <b>est.</b> where Bybit gives no comparable value (value ÷ leverage). Included: strictly above {Number.isFinite(threshold) ? threshold + ' USDT' : 'the threshold'}, every owner, each side separately.</>}</p>}
       {view === 'mart' && <p className="lp-source-note">Only open BOT positions with a recorded MART addition. Additional MART stages and manual MART execution are not available.</p>}
-      <div className="aged-table-title"><span>{fixedSymbol ? fixedSymbol + ' · Positions' : title}</span></div>
-      {(view === 'latest' || view === 'aged') && <p style={{ fontSize: 13 }}>Open time comes from Bybit's current-position openTime. Unavailable times show —{view === 'aged' ? ' and are excluded from the age filter' : ''}.</p>}
       <div className="table-wrap" role="region" tabIndex={0} aria-label="Positions table">
-        <table className="lp-table botpos-table" data-testid="botpos-table">
-          <colgroup>{[9, 3, 5, 8.5, 8.5, 7.5, 7.5, 9.5, 8, 4.5, 3.5, 8.5, 8, 3, 5.5].map((w, i) => <col key={i} style={{ width: `${w}%` }} />)}</colgroup>
+        <table className="lp-table botpos-table tb-unified-positions" data-testid="botpos-table">
           <thead><tr>
             <SortTh k="symbol" s={sort} onSort={toggleSort}>Symbol</SortTh>
-            <th className="c">Bybit</th>
-            <SortTh k="size" s={sort} onSort={toggleSort}>Size</SortTh>
-            <SortTh k="value" s={sort} onSort={toggleSort}>Position Value</SortTh>
-            <SortTh k="entry" s={sort} onSort={toggleSort}>Average Entry</SortTh>
-            <SortTh k="mark" s={sort} onSort={toggleSort}>Mark Price</SortTh>
-            <SortTh k="liq" s={sort} onSort={toggleSort}>Liquidation</SortTh>
-            <SortTh k="upnl" s={sort} onSort={toggleSort}>Unrealized P&amp;L</SortTh>
-            <SortTh k="open" s={sort} onSort={toggleSort} title="Bybit openTime for the currently open position">Open Time</SortTh>
-            <SortTh k="age" s={sort} onSort={toggleSort}>Age</SortTh>
             <th>Owner</th>
-            <SortTh k="status" s={sort} onSort={toggleSort} title="Managed = the bot is acting on this side now; Paused = waits until START">Status</SortTh>
-            <SortTh k="tp" s={sort} onSort={toggleSort} title="BOT: internal TP. External: existing Bybit TP, read only.">TP</SortTh>
-            {risk ? <SortTh k="risk" s={sort} onSort={toggleSort} title={view === 'margin' ? 'Bybit position margin (positionIM) from the last sync; est. = value ÷ leverage where Bybit reports none' : undefined}>{view === 'margin' ? 'Margin (USDT)' : 'Price Move %'}</SortTh> : <th title="No stop-loss in this version">SL</th>}
-            <th>Actions</th>
+            <SortTh k="size" s={sort} onSort={toggleSort}>Size</SortTh>
+            <SortTh k="value" s={sort} onSort={toggleSort}>Value $</SortTh>
+            <SortTh k="entry" s={sort} onSort={toggleSort}>Entry</SortTh>
+            <SortTh k="mark" s={sort} onSort={toggleSort}>Mark</SortTh>
+            <SortTh k="liq" s={sort} onSort={toggleSort}>Liq</SortTh>
+            <SortTh k="tp" s={sort} onSort={toggleSort} title="Top: target price; bottom: existing stop loss (not available when blank)">TP / SL</SortTh>
+            <th className="tb-v19-select-col" title="Select visible positions"><input type="checkbox"
+               aria-label="Select all visible positions" checked={selectedOnPage} disabled={!visibleIds.length}
+               onChange={e=>toggleAllVisible(e.target.checked)} /></th>
+            <SortTh k="upnl" s={sort} onSort={toggleSort}>P&amp;L $</SortTh>
+            <SortTh k="upnlPct" s={sort} onSort={toggleSort} title="Unleveraged price move relative to position direction, not exchange ROI">P&amp;L %</SortTh>
+            <SortTh k="open" s={sort} onSort={toggleSort}>Open Time</SortTh>
+            <SortTh k="age" s={sort} onSort={toggleSort}>Age</SortTh>
+            {risk && <SortTh k="risk" s={sort} onSort={toggleSort} title={view === 'margin' ? 'Bybit initial margin (estimate when marked)' : 'Unleveraged price move'}>{view === 'margin' ? 'Margin $' : 'Move %'}</SortTh>}
+            <th>Act</th>
           </tr></thead>
           <tbody>
-            {pg.slice.length === 0 ? <tr><td colSpan={15} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
+            {pg.slice.length === 0 ? <tr><td colSpan={risk ? 15 : 14} className="empty" data-testid="botpos-empty">{emptyText}</td></tr>
               : pg.slice.map(({ p, st, tp, opened }) => (
                 <tr key={p.id} data-pos={p.id}>
-                  <td className="symbol" data-col="symbol"><SymbolSide symbol={p.symbol} leverage={p.leverage} side={p.side} /></td>
-                  <td className="c"><a className="bybit-icon" title={`Open ${p.symbol} on Bybit`} target="_blank" rel="noopener noreferrer" href={`https://www.bybit.com/trade/usdt/${p.symbol}`}><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4h6v6" /><path d="M20 4 10 14" /><path d="M20 13v7H4V4h7" /></svg></a></td>
+                  <td className="symbol" data-col="symbol"><span className="tb-sym-compact"><SymbolSide symbol={p.symbol} leverage={p.leverage} side={p.side} />
+                    <a className="bybit-icon" title={`Open ${p.symbol} on Bybit Futures`} aria-label={`Open ${p.symbol} on Bybit Futures`}
+                      target="_blank" rel="noopener noreferrer" href={`https://www.bybit.com/trade/usdt/${p.symbol}`}>
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M14 4h6v6" /><path d="M20 4 10 14" /><path d="M20 13v7H4V4h7" />
+                      </svg>
+                    </a></span></td>
+                  <td data-col="owner"><span className="tb-cell-primary">{p.side === 'Sell' && pumpBySymbol.has(p.symbol) ? 'Pump' : p.owner === 'bot' ? 'BOT' : 'External'}</span>
+                    <span className={`tb-cell-secondary ${st.cls}`}>{st.text}</span></td>
                   <td data-col="size">{p.size}</td>
                   <td data-col="value">{num(p.notional, 2)}</td>
                   <td data-col="entry">{price(p.entryPrice)}</td>
                   <td data-col="mark">{price(p.markPrice)}</td>
                   <td data-col="liq"><Liq value={p.liqPrice} fmt={price} /></td>
-                  <td className={tone(p.unrealizedPnl)} data-col="upnl">{typeof p.unrealizedPnl === 'number' ? `${p.unrealizedPnl > 0 ? '+' : ''}${p.unrealizedPnl.toFixed(4)}` : '—'}</td>
+                  <td data-col="tp"><span className="tb-cell-primary green">TP&nbsp;{tp ? compactTargetPrice(tp.price) : '—'}</span>
+                    <span className="tb-cell-secondary">SL&nbsp; —</span></td>
+                  <td className="tb-v19-select-col" data-col="select"><input type="checkbox"
+                    aria-label={`Select ${p.symbol} ${p.side} position`}
+                    checked={checked.includes(p.id)} disabled={p.size<=0||Boolean(p.missingOnExchangeSince)}
+                    onChange={e=>toggleRow(p.id,e.target.checked)} /></td>
+                  <td className={tone(p.unrealizedPnl)} data-col="upnl">{Number.isFinite(p.unrealizedPnl) ? `${p.unrealizedPnl > 0 ? '+' : ''}${num(p.unrealizedPnl, 4)}` : '—'}</td>
+                  <td className={tone(movePct(p))} data-col="upnlPct">{movePct(p) === null ? '—' : `${movePct(p)! > 0 ? '+' : ''}${num(movePct(p), 2)}%`}</td>
                   <td data-col="open"><DateTime ts={opened} /></td>
                   <td data-col="age">{age(opened === null ? null : now - opened)}</td>
-                  <td>{p.side === 'Sell' && pumpBySymbol.has(p.symbol) ? 'PUMP' : p.owner === 'bot' ? 'BOT' : 'External'}</td>
-                  <td className={st.cls} data-col="status">{st.text}</td>
-                  <td data-col="tp">{tp ? <>{price(tp.price)} <small className="tp-pct">{tp.pct > 0 ? tp.pct + '%' : 'Bybit'}</small></> : '—'}</td>
-                  {risk ? <td className={view === 'margin' ? '' : tone(movePct(p))} data-col="risk">{view === 'margin' ? <MarginCell p={p} /> : num(movePct(p), 2) + '%'}</td> : <td className="na">—</td>}
-                  <td><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} pump={p.side === 'Sell' ? pumpBySymbol.get(p.symbol) : undefined} refresh={pumpOwnership.refresh} />{p.owner === 'bot' && <button type="button" className="row-act" onClick={onGoCycles}>Cycle</button>}</td>
+                  {risk && <td className={view === 'margin' ? '' : tone(movePct(p))} data-col="risk">{view === 'margin' ? <MarginCell p={p} /> : num(movePct(p), 2) + '%'}</td>}
+                  <td data-col="actions"><div className="tb-v19-row-actions"><PositionCloseButton id={p.id} symbol={p.symbol} side={p.side} quantity={p.size} unrealizedPnl={p.unrealizedPnl}/><PositionOwnershipActions id={p.id} symbol={p.symbol} side={p.side} owner={p.owner} pump={p.side === 'Sell' ? pumpBySymbol.get(p.symbol) : undefined} refresh={pumpOwnership.refresh} />{p.owner === 'bot' && <button type="button" className="row-act" onClick={onGoCycles}>Cycle</button>}</div></td>
                 </tr>
               ))}
           </tbody>
         </table>
       </div>
-      {!fixedSymbol && <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="positions" onPage={setPage} />}
+      {!fixedSymbol && <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={reset(setSize)} /></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="positions" onPage={setPage} /></div>}
       </>}
     </div>
   );

@@ -62,7 +62,7 @@ export function LightPumpShort({ state }: { state: BotStateSummary | null }) {
     <section className="section">
       <div className="lp-toolbar">
         <div className="tb-left"><input className="search" type="search" aria-label="Search pump symbols" placeholder="Search by Symbol..." value={query} onChange={e => change(setQuery)(e.target.value)} /></div>
-        <RowsPicker size={size} onSize={change(setSize)} />
+        
         <FilterChoices<Filter> label="Status" className="tb-right" value={filter} onChange={change(setFilter)} options={[
           { value: 'ALL', label: 'All Candidates' }, { value: 'ELIGIBLE', label: 'Eligible' }, { value: 'EXCLUDED', label: 'SHORT Open' },
         ]}/>
@@ -90,7 +90,7 @@ export function LightPumpShort({ state }: { state: BotStateSummary | null }) {
           </tr>) : <tr><td className="empty" colSpan={8}>No candidates match the filters.</td></tr>}</tbody>
         </table>
       </div>
-      <Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} />
+      <div className="tb-paging-row"><div className="tb-paging-rows"><RowsPicker size={size} onSize={change(setSize)} /></div><Pager from={pg.from} to={pg.to} total={filtered.length} page={pg.page} pages={pg.pages} noun="symbols" onPage={setPage} /></div>
     </section>
     {manualShort && <ManualOrderDialog key={manualShort} symbol={manualShort} side="Sell" enabled={state?.systemMetrics?.tradingMode === 'REAL' && state?.systemMetrics?.tradingState === 'RUNNING'} onClose={() => setManualShort(null)} onDone={() => void refresh()} />}
   </div>;

@@ -1,9 +1,7 @@
 import {visibleLog} from '../../shared/visibleLog.ts';
 /// <reference path="./imageTypes.d.ts"/>
 import {TradeNotificationBell} from '../notifications/TradeNotifications.tsx';
-import {useDialogFocus} from './useDialogFocus.ts';
 import {updateStatus} from './uiStatus.ts';
-import sidebarLogo from '../../assets/branding/sidebar-logo.png';
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertItem, BotStateSummary, TradeLog } from '../../types/trading.ts';
 import type { StrategyCycle } from '../../types/strategy.ts';
@@ -11,10 +9,25 @@ import { useRead } from './reports.tsx';
 import { formatCount } from './format.tsx';
 import { CLOSED_DEFAULT_DAYS, TRADES_URL, closedUrl, inPositionView, liveTradeRecords, liveTriggerRecords, savedThresholds } from './listCounts.ts';
 import {PAGE_PATHS,linkClick} from './navigation.ts';
-import { LIGHT_NAV, NavIcon } from './nav.tsx';
+import { LIGHT_NAV } from './nav.tsx';
 import { LightModal, postJson } from './Modal.tsx';
 
-// Approved light design: fixed sidebar + sticky 110px header with the eight account figures, START/STOP and Logout.
+const TOP_GROUPS: {name:string; entry:string; tabs:{id:string;name:string}[]}[] = [
+  {name:'Dashboard',entry:'dashboard',tabs:[{id:'dashboard',name:'Overview'}]},
+  {name:'Positions',entry:'all_positions',tabs:[
+    {id:'all_positions',name:'All Positions'},{id:'bot_positions',name:'BOT'},{id:'pump_positions',name:'Pump'},
+    {id:'dump_positions',name:'Dump'},{id:'external_positions',name:'External'},{id:'mart_positions',name:'MART'},
+    {id:'closed_positions',name:'Closed'},{id:'aged_positions',name:'Aged'},{id:'latest_opened',name:'Latest'},
+    {id:'deep_loss_positions',name:'Deep Loss'},{id:'deep_profit_positions',name:'Deep Profit'},
+    {id:'high_margin_positions',name:'High Margin'}]},
+  {name:'Symbols',entry:'symbols',tabs:[{id:'symbols',name:'All Symbols'},{id:'symbol_trading',name:'Single Coin'}]},
+  {name:'Strategies',entry:'bot_cycles',tabs:[{id:'bot_cycles',name:'BOT Cycles'},{id:'pump_short',name:'Pump Short'},{id:'dump_buy',name:'Dump Buy'}]},
+  {name:'Analytics',entry:'pl_analytics',tabs:[{id:'pl_analytics',name:'P&L Analytics'},{id:'trade_history',name:'Trade History'},{id:'trigger_orders',name:'Trigger Orders'}]},
+  {name:'Settings',entry:'security',tabs:[{id:'security',name:'Security'},{id:'smart_mart_alerts',name:'Smart MART Alerts'},
+    {id:'alert_history',name:'Alert History'},{id:'logs',name:'Logs'}]}
+];
+
+// The original real trading controls and account figures remain operational beneath a unified top navigation.
 // Every figure comes from the server (WebSocket snapshot + REST); "—" when not available.
 
 const fmt = (v: number | null | undefined, d = 2) => (typeof v === 'number' && Number.isFinite(v) ? v.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }) : '—');
@@ -35,15 +48,6 @@ export function syncedPositions(state: BotStateSummary | null) {
 export const LightShell: React.FC<{
   state: BotStateSummary | null; wsConnected: boolean; lastUpdated: number; activeTab: string; onTab: (t: string) => void; onRefresh: () => void; children: React.ReactNode;
 }> = ({ state, wsConnected, lastUpdated, activeTab, onTab, onRefresh, children }) => {
-  const [collapsed, setCollapsed] = useState(false);
-  const [menuOpen,setMenuOpen]=useState(false);
-  const sidebarRef=useDialogFocus(menuOpen,false,()=>setMenuOpen(false));
-  useEffect(()=>{setMenuOpen(false);},[activeTab]);
-  useEffect(()=>{
-    const media=window.matchMedia('(max-width:760px)');
-    const resize=()=>{if(!media.matches)setMenuOpen(false);};
-    media.addEventListener('change',resize);return()=>media.removeEventListener('change',resize);
-  },[]);
   const [modal, setModal] = useState<null | 'start' | 'stop'>(null);
   const [pin, setPin] = useState('');
   const [busy, setBusy] = useState(false);
@@ -100,19 +104,8 @@ export const LightShell: React.FC<{
       logs: state ? (state.recentLogs || []).filter(visibleLog).length : null,
     };
   }, [symbols, pos, state, now, tradesRead.data, closedRead.data, pumpRead.data, dumpRead.data]);
-  const countScope: Record<string, string> = {
-    pump_positions: 'Pump Short open, pending and review records (excluding closed and manually released records).',
-    dump_positions: 'Dump BUY open, pending and review records (excluding closed trades).',
-    external_positions: 'Exchange positions without main BOT ownership or active Pump Short ownership.',
-    trade_history: 'Real (LIVE) bot executions in the stored record list (Simulation and unverified legacy excluded). The bot keeps only its latest records, so this is not a lifetime total.',
-    closed_positions: `Bybit closed positions in the last ${CLOSED_DEFAULT_DAYS} days (the page's default period).`,
-    logs: 'Latest log records in the live snapshot (up to 150), not a lifetime total.',
-    alert_history: 'Raised indicator and Smart MART alerts kept (latest 2,000), not a lifetime total.',
-    smart_mart_alerts: 'Smart MART alert definitions (position recovery alerts).',
-    trigger_orders: 'Real (LIVE) cycle sides + re-entry orders among the latest 50 order records.',
-    aged_positions: 'Positions recorded open for at least 24 hours (the page default).',
-  };
   const title = LIGHT_NAV.find((n) => n.id === activeTab)?.label || (activeTab === 'symbol_trading' ? 'Futures' : 'Dashboard');
+  const currentGroup = TOP_GROUPS.find((g) => g.tabs.some((t) => t.id === activeTab)) || TOP_GROUPS[0];
   const upnl = has ? w.unrealizedPnl : null;
 
   const openStartStop = () => {
@@ -133,53 +126,79 @@ export const LightShell: React.FC<{
   };
 
   return (
-    <div className={`page page-dashboard${activeTab === 'symbol_trading' ? ' symbol-standalone' : ''}${collapsed ? ' sb-collapsed' : ''}${menuOpen ? ' mobile-nav-open' : ''}`}>
+    <div className="page page-dashboard tb-unified-shell">
       <a className="skip-link" href="#main-content">Skip to content</a>
-      {menuOpen&&<button className="nav-backdrop" aria-label="Close navigation" onClick={()=>setMenuOpen(false)}/>}
       <div className="app">
-        {activeTab !== 'symbol_trading' && <aside ref={sidebarRef} tabIndex={-1} className="sidebar" id="appSidebar" role={menuOpen?'dialog':undefined} aria-modal={menuOpen?true:undefined} aria-label="Main menu">
-          <button className="brand" type="button" aria-label={menuOpen?'Close navigation':collapsed?'Expand sidebar':'Collapse sidebar'} aria-expanded={!collapsed} onClick={() => window.matchMedia('(max-width:760px)').matches?setMenuOpen(false):setCollapsed((v) => !v)}>
-            <img className="sidebar-logo-wide" src={sidebarLogo} alt="TradeBot Pro"/><img className="sidebar-logo-icon" src="/tradebot-icon-v1.png" alt="TradeBot Pro"/><span className="collapse" aria-hidden="true">{collapsed ? '»' : '«'}</span>
-          </button>
-          <nav className="nav" id="navigation" aria-label="Main navigation">
-            {LIGHT_NAV.map((n) => (
-              <a key={n.id} href={PAGE_PATHS[n.id]||'/Dashboard'} title={n.built ? n.label : `${n.label} — coming soon (not available in this version)`} data-nav={n.id} data-soon={n.built ? undefined : 'true'} className={[activeTab === n.id ? 'active' : '', n.built ? '' : 'soon'].filter(Boolean).join(' ') || undefined} aria-current={activeTab === n.id ? 'page' : undefined} onClick={(e) => linkClick(e,PAGE_PATHS[n.id]||'/Dashboard')}>
-                <span className="nav-ico" aria-hidden="true"><NavIcon>{n.icon}</NavIcon></span>
-                <span className="nav-label">{n.label}</span>
-                {!n.built ? <span className="nav-count">—</span> : n.id in counts ? <span className="nav-count" data-count={counts[n.id] ?? 'unavailable'} title={countScope[n.id]}>{formatCount(counts[n.id], n.id === 'trade_history' || n.id === 'closed_positions')}</span> : null}
+        <main className="main" id="dashboard">
+           <header className="tb-v19-header" data-testid="t-topbar">
+             <button className="tb-v19-brand" type="button" onClick={() => onTab('dashboard')} aria-label="TradeBot Pro Dashboard">
+               <span className="tb-v19-brandmark">T</span><span>TRADEBOT <em>PRO</em></span>
+             </button>
+             <nav className="tb-v19-primary" aria-label="Primary navigation">
+               {TOP_GROUPS.map((g) => <a key={g.name} href={PAGE_PATHS[g.entry]}
+                 className={currentGroup.name === g.name ? 'active' : undefined}
+                 aria-current={currentGroup.name === g.name ? 'page' : undefined}
+                 onClick={(e) => linkClick(e, PAGE_PATHS[g.entry])}>{g.name}</a>)}
+             </nav>
+             <div className="tb-v19-actions">
+               <span className={'data-health tb-v19-health '+health.tone} role="status"
+                 title={lastUpdated?'Last received '+new Date(lastUpdated).toLocaleTimeString():'Waiting for server'}>{health.label}</span>
+               <span className={'tb-v19-run-pill '+(running?'running':'paused')}>{running?'● BOT RUNNING':'● BOT STOPPED'}</span>
+               <button className="tb-v19-startstop" type="button" data-testid="start-stop"
+                 disabled={!running && !(configured && conn?.state === 'CONNECTED')}
+                 onClick={openStartStop}>{running?'STOP BOT':'START BOT'}</button>
+               <TradeNotificationBell/>
+               <button className="tb-v19-logout" type="button" title="Logout" onClick={logout}>Logout</button>
+             </div>
+           </header>
+           <div className="tb-v19-page-top">
+             <div className="tb-v19-title-area">
+               <h1>{currentGroup.name === 'Dashboard' ? 'Dashboard' : currentGroup.name === 'Symbols' && activeTab === 'symbol_trading' ? title : currentGroup.name}</h1>
+               <span>{currentGroup.name === 'Positions' ? 'All strategies. One workspace.'
+                 : currentGroup.name === 'Symbols' ? 'Futures markets and individual symbol trading.'
+                 : currentGroup.name === 'Strategies' ? 'BOT cycles, Pump Short and Dump Buy.'
+                 : currentGroup.name === 'Analytics' ? 'Performance, executions and records.'
+                 : currentGroup.name === 'Settings' ? 'Security, alerts and system preferences.'
+                 : 'TradeBot Pro control center.'}</span>
+             </div>
+             <div className="tb-v19-page-actions">
+               <span className={'tb-v19-connection '+health.tone}>{health.label}</span>
+               <button type="button" className="tb-v19-toolbutton" onClick={onRefresh}>↻ Refresh</button>
+               <button type="button" className="tb-v19-toolbutton" onClick={() => {
+                 const table = document.querySelector<HTMLTableElement>('#main-content table');
+                 if (!table) return;
+                 const csv = Array.from(table.querySelectorAll('tr')).map(row =>
+                   Array.from(row.querySelectorAll('th,td')).map(cell =>
+                     '"' + (cell.textContent || '').trim().replace(/"/g, '""') + '"').join(',')
+                 ).join('\\r\\n');
+                 const blob = new Blob(['\\uFEFF'+csv],{type:'text/csv;charset=utf-8'});
+                 const url=URL.createObjectURL(blob);
+                 const anchor=document.createElement('a');anchor.href=url;
+                 anchor.download='tradebot-'+activeTab+'.csv';anchor.click();
+                 setTimeout(()=>URL.revokeObjectURL(url),1000);
+               }} title="Export currently displayed table rows to CSV">↧ Export CSV</button>
+             </div>
+           </div>
+           <div className="tb-v19-account-strip" data-testid="header-stats">
+             <div className="tb-v19-account-cell"><small>BOT STATUS</small><strong className={running?'green':'orange'}>{running?'RUNNING':'STOPPED'}</strong><span>{wsConnected?'Live state':'Waiting for connection'}</span></div>
+             <div className="tb-v19-account-cell"><small>BYBIT API</small><strong className={conn?.state==='CONNECTED'?'green':'orange'}>{conn?.state==='CONNECTED'?'CONNECTED':conn?.state||'OFFLINE'}</strong><span>Authenticated account</span></div>
+             <div className="tb-v19-account-cell"><small>OPEN POSITIONS</small><strong>{pos ? pos.length:'—'}</strong><span>All owners · Exchange sync</span></div>
+             <div className="tb-v19-account-cell"><small>WALLET BALANCE</small><strong data-testid="hs-wallet">{has ? fmt(usdtBal) : '—'}</strong><span>USDT Wallet</span></div>
+             <div className="tb-v19-account-cell"><small>TOTAL EQUITY</small><strong data-testid="hs-equity">{has ? fmt(w.totalEquity) : '—'}</strong><span>USDT</span></div>
+             <div className="tb-v19-account-cell"><small>UNREALIZED P&amp;L</small><strong className={upnl === null?'':upnl<0?'red':upnl>0?'green':''} data-testid="hs-upnl">{upnl === null ? '—' : `${upnl>0?'+':''}${fmt(upnl,3)}`}</strong><span>USDT · Open positions</span></div>
+             <span hidden data-testid="hs-free">{has ? fmt(w.availableBalance) : '—'}</span>
+             <span hidden data-testid="hs-used">{has ? fmt(w.usedMargin) : '—'}</span>
+           </div>
+          <nav className={"tb-sub-nav"+(currentGroup.name === 'Dashboard' ? ' tb-dashboard-shell-tabs' : '')} aria-label={currentGroup.name + ' tabs'}>
+            {currentGroup.tabs.filter((t) => t.id !== 'symbol_trading' || activeTab === 'symbol_trading').map((t) => (
+              <a key={t.id} href={t.id === 'symbol_trading' ? window.location.pathname : PAGE_PATHS[t.id]}
+                className={activeTab === t.id ? 'active' : undefined}
+                aria-current={activeTab === t.id ? 'page' : undefined}
+                onClick={(e) => { if (t.id !== 'symbol_trading') linkClick(e, PAGE_PATHS[t.id]); }}>
+                {t.name}{t.id in counts && counts[t.id] !== null ? <small>{formatCount(counts[t.id], t.id === 'closed_positions')}</small> : null}
               </a>
             ))}
           </nav>
-          <div className="sidebar-credit"><strong>NADER</strong><span className="credit-detail" style={{ fontSize: 10 }}>Design &amp; Development</span></div>
-        </aside>}
-        <main className="main" id="dashboard">
-          <header className="top" data-testid="t-topbar">
-            <div className="top-heading">
-              {activeTab!=='symbol_trading'&&<button className="mobile-menu-button" type="button" aria-label="Open navigation" aria-controls="appSidebar" aria-expanded={menuOpen} onClick={()=>setMenuOpen(true)}>☰ <span>Menu</span></button>}
-              <span className={`header-start-text${running ? ' is-on' : ''}`} role="button" tabIndex={0} data-testid="start-stop"
-                aria-disabled={!running && !(configured && conn?.state === 'CONNECTED') ? 'true' : undefined}
-                title={running ? 'Pause the bot (no TP close / reopen until started again)' : configured && conn?.state === 'CONNECTED' ? 'Start managing all saved bot cycles' : 'Connect the Bybit API first'}
-                onClick={openStartStop} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openStartStop(); } }}>
-                {running ? 'STOP' : 'START'}
-              </span>
-              <strong>{title}</strong>
-              <span className={'data-health '+health.tone} role="status" title={lastUpdated?'Last received '+new Date(lastUpdated).toLocaleTimeString():'Waiting for server'}>{health.label}</span>
-              {activeTab !== 'dashboard' && <a className="header-back" href="/Dashboard" onClick={(e) => linkClick(e,'/Dashboard')} data-testid="header-back">BACK</a>}
-            </div>
-            <div className="stats" data-testid="header-stats">
-              <div className="stat"><div className="name">BOT Positions</div><div className="value">{counts.bot_positions ?? '—'}</div></div>
-              <div className="stat"><div className="name">External</div><div className="value">{counts.external_positions ?? '—'}</div></div>
-              <div className="stat"><div className="name">Symbols</div><div className="value">{symbols ?? '—'}</div></div>
-              <div className="stat"><div className="name">Wallet Balance</div><div className="value" data-testid="hs-wallet">{has ? fmt(usdtBal) : '—'}</div></div>
-              <div className="stat"><div className="name">Total Equity</div><div className="value" data-testid="hs-equity">{has ? fmt(w.totalEquity) : '—'}</div></div>
-              <div className="stat"><div className="name">Free Margin</div><div className="value" data-testid="hs-free">{has ? fmt(w.availableBalance) : '—'}</div></div>
-              <div className="stat"><div className="name">Used Margin</div><div className="value" data-testid="hs-used">{has ? fmt(w.usedMargin) : '—'}</div></div>
-              <div className="stat"><div className="name">Unrealized P&amp;L</div><div className={`value${upnl === null ? '' : upnl < 0 ? ' red' : upnl > 0 ? ' green' : ''}`} data-testid="hs-upnl">{upnl === null ? '—' : `${upnl > 0 ? '+' : ''}${fmt(upnl, 3)}`}</div></div>
-            </div>
-            <div className="header-actions"><TradeNotificationBell/>
-              <button className="header-action-btn logout-btn" type="button" title="Logout" onClick={logout}>Logout</button>
-            </div>
-          </header>
           <div className="page-body" id="main-content" tabIndex={-1}>{children}</div>
           <LightModal open={modal !== null} title={modal === 'stop' ? 'Pause the bot' : 'Start the bot'} confirmLabel={modal === 'stop' ? 'Pause' : 'Start'} busy={busy} error={err} onClose={() => !busy && setModal(null)} onConfirm={confirmStartStop} testid="start-stop-modal">
             {modal === 'stop'
